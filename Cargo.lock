@@ -1,0 +1,4 @@
+[[package]]
+name = "wasm-tetris"
+version = "0.1.0"
+

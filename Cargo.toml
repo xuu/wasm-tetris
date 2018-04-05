@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["axu <axu701@gmail.com>"]
 
 [dependencies]
+stdweb = "0.4.2"

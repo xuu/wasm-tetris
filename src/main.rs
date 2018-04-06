@@ -1,4 +1,4 @@
-#[macro_use]
+// #[macro_use]
 extern crate stdweb;
 
 use stdweb::traits::*;
@@ -7,8 +7,9 @@ use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, CanvasRenderingContext2d};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 enum Brick {
-    // Black,
+    Black,
     Gray,
 }
 
@@ -31,11 +32,14 @@ use BrickDrop::*;
 #[derive(Debug)]
 struct BrickDroper {
     drop: BrickDrop,
-    coord: [(i64, i64); 4],
+    coord: [(isize, isize); 4],
+    limit_x: isize,
+    limit_y: isize,
 }
 
 impl BrickDroper {
-    fn new(drop: BrickDrop, init_x: i64) -> BrickDroper {
+    fn new(drop: BrickDrop, limit_x: isize, limit_y: isize) -> BrickDroper {
+        let init_x = limit_x / 2 - 1;
         let coord = match drop {
             I => [(init_x, -3), (init_x, -2), (init_x, -1), (init_x, 0)],
             J => [
@@ -65,12 +69,30 @@ impl BrickDroper {
                 (init_x + 2, 0),
             ],
         };
-        BrickDroper { drop, coord }
+        BrickDroper { drop, coord, limit_x, limit_y }
     }
 
     fn move_down(&mut self) {
         for (_, y) in self.coord.iter_mut() {
             *y += 1;
+        }
+    }
+
+    fn move_left(&mut self) {
+        if self.coord.iter().any(|c| c.0 < 1) {
+            return;
+        }
+        for (x, _) in self.coord.iter_mut() {
+            *x -= 1;
+        }
+    }
+
+    fn move_right(&mut self) {
+        if self.coord.iter().any(|c| c.0 > self.limit_x - 2) {
+            return;
+        }
+        for (x, _) in self.coord.iter_mut() {
+            *x += 1;
         }
     }
 }
@@ -100,21 +122,6 @@ impl Wall {
     }
 }
 
-fn paint(canvas: &CanvasElement, wall: &Wall) {
-    let context: CanvasRenderingContext2d = canvas.get_context().unwrap();
-    context.set_fill_style_color("#eee");
-    let dist: f64 = wall.brick_width as f64 + 1.0;
-
-    for (x, y, _b) in &wall.bricks {
-        context.fill_rect(
-            *x as f64 * dist,
-            *y as f64 * dist,
-            wall.brick_width as f64,
-            wall.brick_width as f64,
-        );
-    }
-}
-
 #[derive(Debug)]
 struct Animate {
     canvas: CanvasElement,
@@ -125,10 +132,12 @@ struct Animate {
 
 impl Animate {
     fn new(canvas: CanvasElement, wall: Wall) -> Animate {
+        let limit_x = wall.width as isize;
+        let limit_y = wall.height as isize;
         Animate {
             canvas,
             wall,
-            droper: BrickDroper::new(O, 10),
+            droper: BrickDroper::new(T, limit_x, limit_y),
             time_stamp: 0.0,
         }
     }
@@ -136,16 +145,40 @@ impl Animate {
     fn animate(mut self, time: f64) {
         if time - self.time_stamp > 1000.0 {
             self.droper.move_down();
-            js! {
-                console.log(@{format!("{:?}", self.droper)});
-            }
-            paint(&self.canvas, &self.wall);
+            self.droper.move_left();
+            self.paint();
             self.time_stamp = time;
         }
 
         window().request_animation_frame(|t| {
             self.animate(t);
         });
+    }
+
+    fn paint(&self) {
+        let context: CanvasRenderingContext2d = self.canvas.get_context().unwrap();
+        let dist: f64 = self.wall.brick_width as f64 + 1.0;
+        let bricks = self.wall.bricks.clone().into_iter().map(|b| {
+            if self.droper.coord.iter().any(|c| c.0 == b.0 as isize && c.1 == b.1 as isize) {
+                (b.0, b.1, Black)
+            } else {
+                b
+            }
+        });
+
+        for (x, y, b) in bricks {
+            let color = match b {
+                Gray => "#eee",
+                Black => "#333",
+            };
+            context.set_fill_style_color(color);
+            context.fill_rect(
+                x as f64 * dist,
+                y as f64 * dist,
+                self.wall.brick_width as f64,
+                self.wall.brick_width as f64,
+            );
+        }
     }
 }
 

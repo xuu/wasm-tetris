@@ -1,13 +1,16 @@
-// #[macro_use]
+#[macro_use]
 extern crate stdweb;
 
 use stdweb::traits::*;
 use stdweb::unstable::TryInto;
+use stdweb::web::event::KeyDownEvent;
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, CanvasRenderingContext2d};
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 enum Brick {
     Black,
     Gray,
@@ -29,17 +32,20 @@ enum BrickDrop {
 
 use BrickDrop::*;
 
+type Coord = [(isize, isize); 4];
+
 #[derive(Debug)]
 struct BrickDroper {
     drop: BrickDrop,
-    coord: [(isize, isize); 4],
-    limit_x: isize,
-    limit_y: isize,
+    coord: Coord,
+    max_x: isize,
+    max_y: isize,
+    end: bool,
 }
 
 impl BrickDroper {
-    fn new(drop: BrickDrop, limit_x: isize, limit_y: isize) -> BrickDroper {
-        let init_x = limit_x / 2 - 1;
+    fn new(drop: BrickDrop, max_x: isize, max_y: isize) -> BrickDroper {
+        let init_x = max_x / 2 - 1;
         let coord = match drop {
             I => [(init_x, -3), (init_x, -2), (init_x, -1), (init_x, 0)],
             J => [
@@ -69,12 +75,24 @@ impl BrickDroper {
                 (init_x + 2, 0),
             ],
         };
-        BrickDroper { drop, coord, limit_x, limit_y }
+        BrickDroper {
+            drop,
+            coord,
+            max_x,
+            max_y,
+            end: false,
+        }
     }
 
     fn move_down(&mut self) {
+        if self.end {
+            return;
+        }
         for (_, y) in self.coord.iter_mut() {
             *y += 1;
+            if *y == self.max_y - 1 {
+                self.end = true;
+            }
         }
     }
 
@@ -88,7 +106,7 @@ impl BrickDroper {
     }
 
     fn move_right(&mut self) {
-        if self.coord.iter().any(|c| c.0 > self.limit_x - 2) {
+        if self.coord.iter().any(|c| c.0 > self.max_x - 2) {
             return;
         }
         for (x, _) in self.coord.iter_mut() {
@@ -122,44 +140,60 @@ impl Wall {
     }
 }
 
-#[derive(Debug)]
 struct Animate {
     canvas: CanvasElement,
     wall: Wall,
-    droper: BrickDroper,
     time_stamp: f64,
 }
 
 impl Animate {
     fn new(canvas: CanvasElement, wall: Wall) -> Animate {
-        let limit_x = wall.width as isize;
-        let limit_y = wall.height as isize;
         Animate {
             canvas,
             wall,
-            droper: BrickDroper::new(T, limit_x, limit_y),
             time_stamp: 0.0,
         }
     }
 
-    fn animate(mut self, time: f64) {
+    fn run(mut self, droper: Rc<RefCell<BrickDroper>>, time: f64) {
         if time - self.time_stamp > 1000.0 {
-            self.droper.move_down();
-            self.droper.move_left();
-            self.paint();
             self.time_stamp = time;
+            let drc = droper.clone();
+            self.paint(drc);
+            // let will_callapse = self.droper
+            //     .coord
+            //     .iter()
+            //     .map(|c| {
+            //         self.wall
+            //             .bricks
+            //             .get(c.0 as usize * self.wall.width + (c.1 as usize + 1) * self.wall.height)
+            //     })
+            //     .any(|bbb| match bbb {
+            //         Some((_, _, Black)) => true,
+            //         _ => false,
+            //     });
+
+            // if will_callapse || self.droper.end {
+            //     self.wall.bricks = new_bricks;
+            // }
         }
 
         window().request_animation_frame(|t| {
-            self.animate(t);
+            self.run(droper, t);
         });
     }
 
-    fn paint(&self) {
+    fn paint(&self, droper: Rc<RefCell<BrickDroper>>) {
+        let mut d = droper.borrow_mut();
+        d.move_down();
         let context: CanvasRenderingContext2d = self.canvas.get_context().unwrap();
         let dist: f64 = self.wall.brick_width as f64 + 1.0;
         let bricks = self.wall.bricks.clone().into_iter().map(|b| {
-            if self.droper.coord.iter().any(|c| c.0 == b.0 as isize && c.1 == b.1 as isize) {
+            if d
+                .coord
+                .iter()
+                .any(|c| c.0 == b.0 as isize && c.1 == b.1 as isize)
+            {
                 (b.0, b.1, Black)
             } else {
                 b
@@ -197,10 +231,25 @@ fn setup_canvas(selector: &str, wall: &Wall) -> CanvasElement {
 
 fn main() {
     let wall = Wall::new(30, 50, 10);
+    let droper = Rc::new(RefCell::new(BrickDroper::new(T, 30, 50)));
+    let droper_event = Rc::clone(&droper);
+    let droper_down = Rc::clone(&droper);
     let canvas = setup_canvas("canvas", &wall);
-    let ani = Animate::new(canvas, wall);
+    let a = Animate::new(canvas, wall);
+
+    window().add_event_listener(move |e: KeyDownEvent| {
+        js! {
+            console.log(@{format!("{:?}", e.key())})
+        }
+        let mut d = droper_event.borrow_mut();
+        match e.key().as_str() {
+            "ArrowRight" => d.move_right(),
+            "ArrowLeft" => d.move_left(),
+            &_ => (),
+        }
+    });
 
     window().request_animation_frame(move |time| {
-        ani.animate(time);
+        a.run(droper_down, time);
     });
 }

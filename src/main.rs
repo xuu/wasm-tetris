@@ -7,8 +7,8 @@ use stdweb::web::event::KeyDownEvent;
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, CanvasRenderingContext2d};
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 enum Brick {
@@ -141,55 +141,59 @@ impl Wall {
 }
 
 struct Animate {
-    canvas: CanvasElement,
-    wall: Wall,
     time_stamp: f64,
 }
 
 impl Animate {
-    fn new(canvas: CanvasElement, wall: Wall) -> Animate {
-        Animate {
-            canvas,
-            wall,
-            time_stamp: 0.0,
-        }
+    fn new() -> Animate {
+        Animate { time_stamp: 0.0 }
     }
 
-    fn run(mut self, droper: Rc<RefCell<BrickDroper>>, time: f64) {
-        if time - self.time_stamp > 1000.0 {
+    fn play(mut self, canvas: Rc<RefCell<Canvas>>, time: f64) {
+        if time - self.time_stamp > 300.0 {
             self.time_stamp = time;
-            let drc = droper.clone();
-            self.paint(drc);
-            // let will_callapse = self.droper
-            //     .coord
-            //     .iter()
-            //     .map(|c| {
-            //         self.wall
-            //             .bricks
-            //             .get(c.0 as usize * self.wall.width + (c.1 as usize + 1) * self.wall.height)
-            //     })
-            //     .any(|bbb| match bbb {
-            //         Some((_, _, Black)) => true,
-            //         _ => false,
-            //     });
-
-            // if will_callapse || self.droper.end {
-            //     self.wall.bricks = new_bricks;
-            // }
+            let c = canvas.clone();
+            let mut cc = c.borrow_mut();
+            cc.droper.move_down();
+            cc.paint();
         }
 
         window().request_animation_frame(|t| {
-            self.run(droper, t);
+            self.play(canvas, t);
         });
     }
+}
 
-    fn paint(&self, droper: Rc<RefCell<BrickDroper>>) {
-        let mut d = droper.borrow_mut();
-        d.move_down();
-        let context: CanvasRenderingContext2d = self.canvas.get_context().unwrap();
+#[derive(Debug)]
+struct Canvas {
+    context: CanvasRenderingContext2d,
+    wall: Wall,
+    droper: BrickDroper,
+}
+
+impl Canvas {
+    fn new(selector: &str, wall: Wall, droper: BrickDroper) -> Canvas {
+        let canvas: CanvasElement = document()
+            .query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        canvas.set_width(wall.width as u32 * (wall.brick_width + 1));
+        canvas.set_height(wall.height as u32 * (wall.brick_width + 1));
+
+        Canvas {
+            context: canvas.get_context().unwrap(),
+            wall,
+            droper,
+        }
+    }
+
+    fn paint(&self) {
         let dist: f64 = self.wall.brick_width as f64 + 1.0;
         let bricks = self.wall.bricks.clone().into_iter().map(|b| {
-            if d
+            if self.droper
                 .coord
                 .iter()
                 .any(|c| c.0 == b.0 as isize && c.1 == b.1 as isize)
@@ -205,8 +209,8 @@ impl Animate {
                 Gray => "#eee",
                 Black => "#333",
             };
-            context.set_fill_style_color(color);
-            context.fill_rect(
+            self.context.set_fill_style_color(color);
+            self.context.fill_rect(
                 x as f64 * dist,
                 y as f64 * dist,
                 self.wall.brick_width as f64,
@@ -216,40 +220,30 @@ impl Animate {
     }
 }
 
-fn setup_canvas(selector: &str, wall: &Wall) -> CanvasElement {
-    let canvas: CanvasElement = document()
-        .query_selector(selector)
-        .unwrap()
-        .unwrap()
-        .try_into()
-        .unwrap();
-
-    canvas.set_width(wall.width as u32 * (wall.brick_width + 1));
-    canvas.set_height(wall.height as u32 * (wall.brick_width + 1));
-    canvas
-}
-
-fn main() {
-    let wall = Wall::new(30, 50, 10);
-    let droper = Rc::new(RefCell::new(BrickDroper::new(T, 30, 50)));
-    let droper_event = Rc::clone(&droper);
-    let droper_down = Rc::clone(&droper);
-    let canvas = setup_canvas("canvas", &wall);
-    let a = Animate::new(canvas, wall);
-
+fn setup_action(canvas: Rc<RefCell<Canvas>>) {
     window().add_event_listener(move |e: KeyDownEvent| {
         js! {
             console.log(@{format!("{:?}", e.key())})
         }
-        let mut d = droper_event.borrow_mut();
+        let mut c = canvas.borrow_mut();
         match e.key().as_str() {
-            "ArrowRight" => d.move_right(),
-            "ArrowLeft" => d.move_left(),
+            "ArrowRight" => c.droper.move_right(),
+            "ArrowLeft" => c.droper.move_left(),
             &_ => (),
         }
     });
+}
 
+fn main() {
+    let wall = Wall::new(30, 50, 10);
+    let droper = BrickDroper::new(J, 30, 50);
+    let canvas = Rc::new(RefCell::new(Canvas::new("canvas", wall, droper)));
+    let canvas_animate = canvas.clone();
+    let canvas_action = canvas.clone();
+    let animate = Animate::new();
+
+    setup_action(canvas_action);
     window().request_animation_frame(move |time| {
-        a.run(droper_down, time);
+        animate.play(canvas_animate, time);
     });
 }

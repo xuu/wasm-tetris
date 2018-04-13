@@ -3,6 +3,7 @@ extern crate stdweb;
 
 use stdweb::traits::*;
 use stdweb::unstable::TryInto;
+// use stdweb::Value;
 use stdweb::web::event::KeyDownEvent;
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, CanvasRenderingContext2d};
@@ -21,9 +22,9 @@ struct Wall {
 impl Wall {
     fn new(width: u32, height: u32, brick_width: u32) -> Wall {
         let mut bricks: Vec<(u32, u32, Brick)> = Vec::new();
-        for i in 0..width {
-            for j in 0..height {
-                bricks.push((i, j, Gray))
+        for y in 0..height {
+            for x in 0..width {
+                bricks.push((x, y, Gray))
             }
         }
         Wall {
@@ -35,7 +36,7 @@ impl Wall {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum Brick {
     Black,
     Gray,
@@ -43,8 +44,7 @@ enum Brick {
 
 use Brick::*;
 
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Debug, Copy, Clone)]
 enum BrickDrop {
     I,
     J,
@@ -56,6 +56,16 @@ enum BrickDrop {
 }
 
 use BrickDrop::*;
+
+fn gen_random_drop() -> BrickDrop {
+    let brick_drops = [I, J, L, O, S, T, Z];
+    let r = js!(return Math.floor(Math.random() * 7));
+    let rr: usize = r.try_into().unwrap();
+    js! {
+        console.log(@{format!("{:?}", rr)});
+    }
+    brick_drops[rr]
+}
 
 type DropCoords = [(i32, i32); 4];
 
@@ -98,52 +108,84 @@ struct Store {
     next_drop: BrickDrop,
     current_drop_coords: DropCoords,
     scores: u32,
+    init_x: i32,
 }
 
 impl Store {
     fn new(wall: Wall) -> Store {
-        let wall_width = wall.width;
+        let current_drop = gen_random_drop();
+        let init_x = wall.width as i32 / 2 - 1;
         Store {
             wall,
-            current_drop: O,
-            next_drop: L,
-            current_drop_coords: get_drop_coords(L, wall_width as i32 / 2 - 1),
+            current_drop,
+            next_drop: gen_random_drop(),
+            current_drop_coords: get_drop_coords(current_drop, init_x),
             scores: 0,
+            init_x,
         }
     }
 
-    // fn get_random_brick_drop() {
+    fn will_crash_black(&self, next_drop_coords: DropCoords) -> bool {
+        next_drop_coords.iter().any(|c| {
+            let index = c.0 + c.1 * self.wall.width as i32;
+            let len = self.wall.bricks.len() as i32;
+            index >= 0 && index < len && self.wall.bricks[index as usize].2 == Black
+        })
+    }
 
-    // }
+    fn will_crash_edge(&self, next_drop_coords: DropCoords) -> bool {
+        next_drop_coords
+            .iter()
+            .any(|c| c.0 < 0 || c.0 > self.wall.width as i32 - 1 || c.1 >= self.wall.height as i32)
+    }
 
     fn move_down(&mut self) {
-        for (_, y) in self.current_drop_coords.iter_mut() {
+        let width = self.wall.width;
+        let mut next_drop_coords = self.current_drop_coords.clone();
+        for (_, y) in next_drop_coords.iter_mut() {
             *y += 1;
-            // if *y == self.max_y - 1 {
-            //     self.end = true;
-            // }
+        }
+        // js! {
+        //     console.log(@{format!("{:?}", self.will_crash_black(next_drop_coords))});
+        // }
+        if self.will_crash_edge(next_drop_coords) || self.will_crash_black(next_drop_coords) {
+            js! {
+                console.log("crash");
+            }
+            for (x, y) in self.current_drop_coords.iter() {
+                let index = *x + *y * width as i32;
+                if index >= 0 && index < self.wall.bricks.len() as i32 {
+                    self.wall.bricks[index as usize].2 = Black
+                }
+            }
+            self.current_drop = self.next_drop;
+            self.current_drop_coords = get_drop_coords(self.current_drop, self.init_x);
+            self.next_drop = gen_random_drop();
+        } else {
+            self.current_drop_coords = next_drop_coords;
         }
     }
 
     fn move_left(&mut self) {
-        if self.current_drop_coords.iter().any(|c| c.0 < 1) {
-            return;
-        }
-        for (x, _) in self.current_drop_coords.iter_mut() {
+        let mut next_drop_coords = self.current_drop_coords.clone();
+        for (x, _) in next_drop_coords.iter_mut() {
             *x -= 1;
         }
+        if self.will_crash_edge(next_drop_coords) || self.will_crash_black(next_drop_coords) {
+            return;
+        }
+        self.current_drop_coords = next_drop_coords;
     }
 
     fn move_right(&mut self) {
-        if self.current_drop_coords
-            .iter()
-            .any(|c| c.0 > self.wall.width as i32 - 2)
-        {
-            return;
-        }
-        for (x, _) in self.current_drop_coords.iter_mut() {
+        let mut next_drop_coords = self.current_drop_coords.clone();
+        for (x, _) in next_drop_coords.iter_mut() {
             *x += 1;
         }
+        if self.will_crash_edge(next_drop_coords) || self.will_crash_black(next_drop_coords) {
+            return;
+        }
+        self.current_drop_coords = next_drop_coords;
     }
 }
 
@@ -196,7 +238,8 @@ impl Canvas {
     }
 
     fn paint(&self) {
-        let dist: f64 = self.store.wall.brick_width as f64 + 1.0;
+        let brick_width = self.store.wall.brick_width as f64;
+        let dist = brick_width + 1.0;
         let bricks = self.store.wall.bricks.clone().into_iter().map(|b| {
             if self.store
                 .current_drop_coords
@@ -215,25 +258,22 @@ impl Canvas {
                 Black => "#333",
             };
             self.context.set_fill_style_color(color);
-            self.context.fill_rect(
-                x as f64 * dist,
-                y as f64 * dist,
-                self.store.wall.brick_width as f64,
-                self.store.wall.brick_width as f64,
-            );
+            self.context
+                .fill_rect(x as f64 * dist, y as f64 * dist, brick_width, brick_width);
         }
     }
 }
 
 fn setup_action(canvas: Rc<RefCell<Canvas>>) {
     window().add_event_listener(move |e: KeyDownEvent| {
-        js! {
-            console.log(@{format!("{:?}", e.key())})
-        }
+        // js! {
+        //     console.log(@{format!("{:?}", e.key())})
+        // }
         let mut c = canvas.borrow_mut();
         match e.key().as_str() {
             "ArrowRight" => c.store.move_right(),
             "ArrowLeft" => c.store.move_left(),
+            "ArrowDown" => c.store.move_down(),
             &_ => (),
         }
         c.paint();
@@ -241,15 +281,15 @@ fn setup_action(canvas: Rc<RefCell<Canvas>>) {
 }
 
 fn main() {
-    let wall = Wall::new(30, 50, 10);
+    let wall = Wall::new(20, 30, 10);
     let store = Store::new(wall);
     let canvas = Rc::new(RefCell::new(Canvas::new("canvas", store)));
-    let canvas_animate = canvas.clone();
+    let canvas_animation = canvas.clone();
     let canvas_action = canvas.clone();
-    let animate = Animation::new();
+    let animation = Animation::new();
 
     setup_action(canvas_action);
     window().request_animation_frame(move |time| {
-        animate.play(canvas_animate, time);
+        animation.play(canvas_animation, time);
     });
 }

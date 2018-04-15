@@ -3,21 +3,12 @@ extern crate stdweb;
 
 use stdweb::traits::*;
 use stdweb::unstable::TryInto;
-// use stdweb::Value;
 use stdweb::web::event::KeyDownEvent;
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, CanvasRenderingContext2d};
 
 use std::cell::RefCell;
 use std::rc::Rc;
-
-#[derive(Debug, Clone, PartialEq)]
-enum Brick {
-    Black,
-    Gray,
-}
-
-use Brick::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum BrickDrop {
@@ -36,9 +27,6 @@ fn gen_random_drop() -> BrickDrop {
     let brick_drops = [I, J, L, O, S, T, Z];
     let r = js!(return Math.floor(Math.random() * 7));
     let rr: usize = r.try_into().unwrap();
-    // js! {
-    //     console.log(@{format!("{:?}", rr)});
-    // }
     brick_drops[rr]
 }
 
@@ -83,26 +71,24 @@ fn get_drop_coords(d: BrickDrop, init_x: i32) -> DropCoords {
 
 #[derive(Debug)]
 struct Wall {
-    width: u32,
-    height: u32,
+    width: usize,
+    height: usize,
     brick_width: u32,
-    bricks: Vec<(u32, u32, Brick)>,
+    bricks: Vec<(u32, u32)>,
 }
 
 impl Wall {
-    fn new(width: u32, height: u32, brick_width: u32) -> Wall {
-        let mut bricks: Vec<(u32, u32, Brick)> = Vec::new();
-        for y in 0..height {
-            for x in 0..width {
-                bricks.push((x, y, Gray))
-            }
-        }
+    fn new(width: usize, height: usize, brick_width: u32) -> Wall {
         Wall {
             width,
             height,
             brick_width,
-            bricks,
+            bricks: Vec::with_capacity(width * height),
         }
+    }
+
+    fn check_brick_existing(&self, check_brick: (u32, u32)) -> bool {
+        self.bricks.iter().any(|b| *b == check_brick)
     }
 }
 
@@ -121,9 +107,6 @@ impl Store {
         let current_drop = gen_random_drop();
         // let current_drop = I;
         let init_x = wall.width as i32 / 2 - 1;
-        // js! {
-        //     console.log(@{format!("{:?}", get_drop_coords(current_drop, init_x))})
-        // }
         Store {
             wall,
             current_drop,
@@ -139,33 +122,28 @@ impl Store {
     fn will_crash(&self, next_drop_coords: DropCoords) -> bool {
         next_drop_coords
             .iter()
-            .any(|c| c.0 < 0 || c.0 > self.wall.width as i32 - 1 || c.1 >= self.wall.height as i32) ||
-        next_drop_coords.iter().any(|c| {
-            let index = c.1 * self.wall.width as i32 + c.0;
-            let len = self.wall.bricks.len() as i32;
-            index >= 0 && index < len && self.wall.bricks[index as usize].2 == Black
-        })
+            .any(|c| c.0 < 0 || c.0 > self.wall.width as i32 - 1 || c.1 >= self.wall.height as i32)
+            || next_drop_coords.iter().any(|d| {
+                let (dx, dy) = (d.0, d.1);
+                self.wall.check_brick_existing((dx as u32, dy as u32))
+            })
     }
 
     fn move_down(&mut self) {
-        let width = self.wall.width;
         let mut next_drop_coords = self.current_drop_coords.clone();
         for (_, y) in next_drop_coords.iter_mut() {
             *y += 1;
         }
-        // js! {
-        //     console.log(@{format!("{:?}", self.will_crash(next_drop_coords))});
-        // }
         if self.will_crash(next_drop_coords) {
             js! {
                 console.log("crash");
             }
-            for (x, y) in self.current_drop_coords.iter() {
-                let index = *x + *y * width as i32;
-                if index >= 0 && index < self.wall.bricks.len() as i32 {
-                    self.wall.bricks[index as usize].2 = Black
-                }
-            }
+            self.wall
+                .bricks
+                .extend(self.current_drop_coords.iter().map(|(x, y)| {
+                    let (x, y) = (*x, *y);
+                    (x as u32, y as u32)
+                }));
             self.current_drop = self.next_drop;
             self.current_drop_coords = get_drop_coords(self.current_drop, self.init_x);
             self.next_drop = gen_random_drop();
@@ -202,21 +180,23 @@ impl Store {
         // default rotate origin
         let (mut x0, y0) = next_coords[1];
         // adjust origin horizontally
-        let index = y0 * self.wall.width as i32 + x0;
         let adjust_dir = (
-            y0 >= 0 && x0 > 1 && self.wall.bricks[(index - 2) as usize].2 == Gray,
-            y0 >= 0 && x0 > 0 && self.wall.bricks[(index - 1) as usize].2 == Gray,
-            y0 >= 0 && x0 < (self.wall.width - 1) as i32
-                && self.wall.bricks[(index + 1) as usize].2 == Gray,
-            y0 >= 0 && x0 < (self.wall.width - 1) as i32
-                && self.wall.bricks[(index + 2) as usize].2 == Gray,
+            x0 > 1 && !self.wall.check_brick_existing(((x0 - 2) as u32, y0 as u32)),
+            x0 > 0 && !self.wall.check_brick_existing(((x0 - 1) as u32, y0 as u32)),
+            x0 < (self.wall.width - 1) as i32
+                && !self.wall.check_brick_existing(((x0 + 1) as u32, y0 as u32)),
+            x0 < (self.wall.width - 2) as i32
+                && !self.wall.check_brick_existing(((x0 + 2) as u32, y0 as u32)),
         );
-        if let (_, false, false, _) = adjust_dir {
-            return;
+        js! {
+            console.log(@{format!("{:?}", adjust_dir)});
         }
+        // if let (_, false, false, _) = adjust_dir {
+        //     return;
+        // }
         let dx = match adjust_dir {
-            (false, true, true, _) if self.current_drop == I => 1,
-            (false, false, true, true) if self.current_drop == I => 2,
+            (false, true, true, true) if self.current_drop == I => 1,
+            (_, false, true, true) if self.current_drop == I => 2,
             (true, true, false, _) if self.current_drop == I => -2,
             (_, true, true, false) if self.current_drop == I => -1,
             (_, false, true, _) if self.current_drop != I => 1,
@@ -231,6 +211,17 @@ impl Store {
         if !self.will_crash(next_coords) {
             self.current_drop_coords = next_coords;
         }
+    }
+
+    fn get_bricks_snapshot(&self) -> Vec<(u32, u32)> {
+        let mut bricks = self.wall.bricks.clone();
+        bricks.extend(
+            self.current_drop_coords
+                .iter()
+                .cloned()
+                .map(|(x, y)| (x as u32, y as u32)),
+        );
+        bricks
     }
 }
 
@@ -252,9 +243,9 @@ impl Animation {
             cc.paint();
         }
 
-        // window().request_animation_frame(|t| {
-        //     self.play(canvas, t);
-        // });
+        window().request_animation_frame(|t| {
+            self.play(canvas, t);
+        });
     }
 
     // fn pause() {}
@@ -266,6 +257,7 @@ impl Animation {
 struct Canvas {
     context: CanvasRenderingContext2d,
     store: Store,
+    bricks_snapshot: Vec<(u32, u32)>,
 }
 
 impl Canvas {
@@ -280,43 +272,39 @@ impl Canvas {
         canvas.set_width(store.wall.width as u32 * (store.wall.brick_width + 1));
         canvas.set_height(store.wall.height as u32 * (store.wall.brick_width + 1));
 
-        Canvas {
-            context: canvas.get_context().unwrap(),
-            store,
-        }
-    }
-
-    fn paint(&self) {
-        let brick_width = self.store.wall.brick_width as f64;
+        let brick_width = store.wall.brick_width as f64;
         let dist = brick_width + 1.0;
-        let mut bricks = self.store.wall.bricks.clone();
-        // .into_iter().map(|b| {
-        //     if self.store
-        //         .current_drop_coords
-        //         .iter()
-        //         .any(|c| c.0 == b.0 as i32 && c.1 == b.1 as i32)
-        //     {
-        //         (b.0, b.1, Black)
-        //     } else {
-        //         b
-        //     }
-        // });
-        let width = self.store.wall.width;
-        for (x, y) in self.store.current_drop_coords.iter() {
-            let index = *x + *y * width as i32;
-            if index >= 0 && index < bricks.len() as i32 {
-                bricks[index as usize].2 = Black
+        let context: CanvasRenderingContext2d = canvas.get_context().unwrap();
+        context.set_fill_style_color("#eee");
+        for y in 0..store.wall.height {
+            for x in 0..store.wall.width {
+                context
+                    .fill_rect(x as f64 * dist, y as f64 * dist, brick_width, brick_width);
             }
         }
 
-        for (x, y, b) in bricks {
-            let color = match b {
-                Gray => "#eee",
-                Black => "#333",
-            };
-            self.context.set_fill_style_color(color);
+        Canvas {
+            context,
+            store,
+            bricks_snapshot: Vec::new(),
+        }
+    }
+
+    fn paint(&mut self) {
+        let brick_width = self.store.wall.brick_width as f64;
+        let dist = brick_width + 1.0;
+
+        self.context.set_fill_style_color("#eee");
+        for (x, y) in &self.bricks_snapshot {
             self.context
-                .fill_rect(x as f64 * dist, y as f64 * dist, brick_width, brick_width);
+                .fill_rect(*x as f64 * dist, *y as f64 * dist, brick_width, brick_width);
+        }
+
+        self.bricks_snapshot = self.store.get_bricks_snapshot();
+        self.context.set_fill_style_color("#333");
+        for (x, y) in &self.bricks_snapshot {
+            self.context
+                .fill_rect(*x as f64 * dist, *y as f64 * dist, brick_width, brick_width);
         }
     }
 }

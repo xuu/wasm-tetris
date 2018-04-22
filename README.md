@@ -1,3 +1,3 @@
-# WebAssembly Tetris writen in Rust
+# WebAssembly Tetris written in Rust
 
 ![Snapshot](/static/snapshot.png)

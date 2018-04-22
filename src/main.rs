@@ -101,15 +101,35 @@ impl Wall {
     }
 }
 
+fn derived_level(score: u32) -> u32 {
+    match score {
+        0...5_000 => 1,
+        5_000...8_000 => 2,
+        8_000...10_000 => 3,
+        _ => 4,
+    }
+}
+
+fn derived_speed(level: u32) -> f64 {
+    match level {
+        0 | 1 => 300.0,
+        2 => 200.0,
+        3 => 100.0,
+        _ => 50.0,
+    }
+}
+
 #[derive(Debug)]
 struct Store {
     wall: Wall,
     current_drop: BrickDrop,
     current_drop_coords: DropCoords,
     next_drop: BrickDrop,
-    scores: u32,
+    score: u32,
+    level: u32,
     init_x: i32,
     playing: bool,
+    speed: f64,
     game_over: bool,
 }
 
@@ -122,9 +142,11 @@ impl Store {
             current_drop,
             current_drop_coords: get_drop_coords(current_drop, init_x),
             next_drop: gen_random_drop(),
-            scores: 0,
+            score: 0,
+            level: 1,
             init_x,
             playing: false,
+            speed: 300.0,
             game_over: false,
         }
     }
@@ -137,9 +159,11 @@ impl Store {
             .any(|c| c.0 < 0 || c.0 > self.wall.width as i32 - 1 || c.1 >= self.wall.height as i32)
             || new_drop_coords
                 .iter()
-                .any(|d| self.wall.check_brick_existing(*d))
+                .any(|&d| self.wall.check_brick_existing(d))
     }
+}
 
+impl Store {
     fn build_wall(&mut self) {
         let mut game_over = false;
         let width = self.wall.width as i32;
@@ -147,14 +171,14 @@ impl Store {
         self.wall
             .bricks
             .sort_by(|a, b| (a.1 * width + a.0).cmp(&(b.1 * width + b.0)));
-        let (mut new_bricks, rows, mut temp, _) = self.wall.bricks.iter().fold(
+        let (mut new_bricks, mut temp, rows, _) = self.wall.bricks.iter().fold(
             (
                 Vec::<(i32, i32)>::new(),
-                Vec::<i32>::new(),
                 Vec::<(i32, i32)>::new(),
+                Vec::<i32>::new(),
                 0,
             ),
-            |(mut n, mut rows, mut temp, prev_y), &(x, y)| {
+            |(mut n, mut temp, mut rows, prev_y), &(x, y)| {
                 if y < 0 {
                     game_over = true;
                 }
@@ -169,7 +193,7 @@ impl Store {
                     temp.clear();
                     temp.push((x, y));
                 }
-                (n, rows, temp, y)
+                (n, temp, rows, y)
             },
         );
 
@@ -191,19 +215,24 @@ impl Store {
                     (x, y + dy)
                 })
                 .collect();
-            self.scores += 100 * 2u32.pow(rows.len() as u32 - 1);
+            self.score += 100 * 2u32.pow(rows.len() as u32 - 1);
+            self.level = derived_level(self.score);
+            self.speed = derived_speed(self.level);
         }
     }
+}
 
-    fn move_down(&mut self) {
+impl Store {
+    fn move_down(&mut self) -> bool {
         if !self.playing {
-            return;
+            return false;
         }
         let mut new_drop_coords = self.current_drop_coords.clone();
         for (_, y) in new_drop_coords.iter_mut() {
             *y += 1;
         }
-        if self.will_crash(new_drop_coords) {
+        let crash = self.will_crash(new_drop_coords);
+        if crash {
             self.build_wall();
             self.current_drop = self.next_drop;
             self.current_drop_coords = get_drop_coords(self.current_drop, self.init_x);
@@ -211,8 +240,21 @@ impl Store {
         } else {
             self.current_drop_coords = new_drop_coords;
         }
+        !crash
     }
+}
 
+impl Store {
+    fn drop_down(&mut self) {
+        loop {
+            if !self.move_down() {
+                break;
+            }
+        }
+    }
+}
+
+impl Store {
     fn move_left(&mut self) {
         if !self.playing {
             return;
@@ -225,7 +267,9 @@ impl Store {
             self.current_drop_coords = new_drop_coords;
         }
     }
+}
 
+impl Store {
     fn move_right(&mut self) {
         if !self.playing {
             return;
@@ -238,7 +282,9 @@ impl Store {
             self.current_drop_coords = new_drop_coords;
         }
     }
+}
 
+impl Store {
     fn rotate(&mut self) {
         if self.current_drop == O || !self.playing {
             return;
@@ -272,15 +318,29 @@ impl Store {
             self.current_drop_coords = next_coords;
         }
     }
+}
 
+impl Store {
+    fn restart(&mut self) {
+        self.wall.bricks.clear();
+        self.current_drop = gen_random_drop();
+        self.next_drop = gen_random_drop();
+        self.current_drop_coords = get_drop_coords(self.current_drop, self.init_x);
+        self.score = 0;
+        self.game_over = false;
+        self.speed = 300.0
+    }
+
+    fn pause_toggle(&mut self) {
+        self.playing = !self.playing;
+    }
+}
+
+impl Store {
     fn get_bricks_snapshot(&self) -> Vec<(i32, i32)> {
         let mut bricks = self.wall.bricks.clone();
         bricks.extend(self.current_drop_coords.iter());
         bricks
-    }
-
-    fn playing_toggle(&mut self) {
-        self.playing = !self.playing;
     }
 }
 
@@ -289,7 +349,10 @@ struct Canvas {
     canvas: CanvasElement,
     context: CanvasRenderingContext2d,
     store: Store,
+    top_y: f64,
 }
+
+use stdweb::web::TextAlign::*;
 
 impl Canvas {
     fn new(selector: &str, store: Store) -> Canvas {
@@ -307,48 +370,62 @@ impl Canvas {
             ..
         } = store.wall;
 
-        // let dist = brick_width as f64 + 1.0;
         let context: CanvasRenderingContext2d = canvas.get_context().unwrap();
-        let translate_y = 4f64 * (brick_width + 1) as f64;
+        let translate_y = 5f64 * (brick_width + 1) as f64;
+        let dist = brick_width as f64 + 1.0;
         canvas.set_width(width as u32 * (brick_width + 1));
-        canvas.set_height((height + 4) as u32 * (brick_width + 1));
+        canvas.set_height((height + 5) as u32 * (brick_width + 1));
         context.translate(0f64, translate_y);
-        context.set_font("12px serif");
-        // context.set_fill_style_color("#eee");
-        // for y in 0..height {
-        //     for x in 0..width {
-        //         context.fill_rect(
-        //             x as f64 * dist,
-        //             y as f64 * dist,
-        //             brick_width as f64,
-        //             brick_width as f64,
-        //         );
-        //     }
-        // }
+
+        context.set_fill_style_color("#eee");
+        for y in 0..height {
+            for x in 0..width {
+                context.fill_rect(
+                    x as f64 * dist,
+                    y as f64 * dist,
+                    brick_width as f64,
+                    brick_width as f64,
+                );
+            }
+        }
+
+        let x_center = canvas.width() as f64 / 2.0;
+        context.set_fill_style_color("#333");
+        context.set_font("14px consolas,\"Liberation Mono\",courier,monospace");
+        context.set_text_align(Center);
+        context.fill_text("start: any", x_center, 20.0, None);
+        context.fill_text("left: ← , j , a", x_center, 40.0, None);
+        context.fill_text("right: → , l , d", x_center, 60.0, None);
+        context.fill_text("rotate: ↑ , i , w", x_center, 80.0, None);
+        context.fill_text("speed up: ↓ , k , s", x_center, 100.0, None);
+        context.fill_text("drop: enter , space", x_center, 120.0, None);
+        context.fill_text("pause: p", x_center, 140.0, None);
 
         Canvas {
             canvas,
             context,
             store,
+            top_y: -translate_y,
         }
     }
+}
 
+impl Canvas {
     fn draw(&mut self) {
         let brick_width = self.store.wall.brick_width as f64;
         let dist = brick_width + 1.0;
-        let translate_y = 4f64 * (brick_width + 1.0);
-        let scores = String::from("scores: ") + &self.store.scores.to_string();
+        let x_center = self.canvas.width() as f64 / 2.0;
+        let score = String::from("Score/Level: ") + &self.store.score.to_string() + "/"
+            + &self.store.level.to_string();
+
         self.context.clear_rect(
             0.0,
-            -translate_y,
+            self.top_y,
             self.canvas.width() as f64,
             self.canvas.height() as f64,
         );
 
-        self.context.set_fill_style_color("#333");
-        self.context
-            .fill_text(&scores, 0.0, -translate_y + 10.0, None);
-        self.context.set_fill_style_color("#eee"); // TODO: background
+        self.context.set_fill_style_color("#eee");
         for y in 0..self.store.wall.height {
             for x in 0..self.store.wall.width {
                 self.context.fill_rect(
@@ -361,9 +438,23 @@ impl Canvas {
         }
 
         self.context.set_fill_style_color("#333");
-        for &(x, y) in get_drop_coords(self.store.next_drop, self.store.init_x).iter() {
-            self.context
-                .fill_rect(x as f64 * dist, y as f64 * dist, brick_width, brick_width);
+        self.context.set_font("12px sans-serif");
+        self.context
+            .fill_text(&score, x_center, self.top_y + 10.0, None);
+
+        if self.store.game_over {
+            self.context.set_font("14px sans-serif");
+            self.context.fill_text(
+                "Game Over! Press `enter` restart.",
+                x_center,
+                self.top_y + 30.0,
+                None,
+            );
+        } else {
+            for &(x, y) in get_drop_coords(self.store.next_drop, self.store.init_x).iter() {
+                self.context
+                    .fill_rect(x as f64 * dist, y as f64 * dist, brick_width, brick_width);
+            }
         }
 
         for (x, y) in self.store.get_bricks_snapshot() {
@@ -395,45 +486,66 @@ impl Animation {
             // }
             let mut c = canvas_for_action.borrow_mut();
             match e.key().as_str() {
-                "ArrowUp" | "w" => c.store.rotate(),
-                "ArrowRight" | "d" => c.store.move_right(),
-                "ArrowLeft" | "a" => c.store.move_left(),
-                "ArrowDown" | "s" => c.store.move_down(),
-                " " => {
-                    c.store.playing_toggle();
+                "ArrowUp" | "w" | "i" => c.store.rotate(),
+                "ArrowRight" | "d" | "l" => c.store.move_right(),
+                "ArrowLeft" | "a" | "j" => c.store.move_left(),
+                "ArrowDown" | "s" | "k" => {
+                    c.store.move_down();
+                }
+                "p" => {
+                    c.store.pause_toggle();
                     return;
                 }
+                " " => {
+                    e.prevent_default();
+                    c.store.drop_down();
+                }
+                "Enter" => if c.store.game_over {
+                    c.store.restart();
+                } else {
+                    c.store.drop_down();
+                },
                 &_ => (),
             }
             if !c.store.playing {
-                c.store.playing_toggle()
+                c.store.pause_toggle()
             }
             c.draw();
         });
 
         animation.play(400.0);
     }
+}
 
+impl Animation {
     fn play(mut self, time: f64) {
-        if time - self.time_stamp > 300.0 {
+        if time - self.time_stamp > self.canvas.borrow().store.speed {
             self.time_stamp = time;
             let mut c = self.canvas.borrow_mut();
-            if c.store.playing {
+            if c.store.playing && !c.store.game_over {
                 c.store.move_down();
                 c.draw();
             }
         }
-        if !self.canvas.borrow().store.game_over {
-            window().request_animation_frame(|t| {
-                self.play(t);
-            });
-        }
+
+        window().request_animation_frame(|t| {
+            self.play(t);
+        });
+    }
+}
+
+#[derive(Debug)]
+struct Tetris {}
+
+impl Tetris {
+    fn new(wall_width: usize, wall_height: usize, brick_width: u32) {
+        let wall = Wall::new(wall_width, wall_height, brick_width);
+        let store = Store::new(wall);
+        let canvas = Canvas::new("canvas", store);
+        Animation::new(canvas);
     }
 }
 
 fn main() {
-    let wall = Wall::new(10, 20, 10);
-    let store = Store::new(wall);
-    let canvas = Canvas::new("canvas", store);
-    Animation::new(canvas);
+    Tetris::new(20, 30, 10);
 }

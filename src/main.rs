@@ -6,6 +6,7 @@ use stdweb::unstable::TryInto;
 use stdweb::web::event::KeyDownEvent;
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, CanvasRenderingContext2d};
+use stdweb::web::TextAlign::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -79,20 +80,20 @@ struct Wall {
 
 impl Wall {
     fn new(width: usize, height: usize, brick_width: u32) -> Wall {
-        let mut bricks = Vec::with_capacity(width * height);
-        for y in (height - 3)..height {
-            for x in 0..width {
-                if !((y == height - 1) && x == 4 || x == 6) {
-                    bricks.push((x as i32, y as i32))
-                }
-            }
-        }
+        // let mut bricks = Vec::with_capacity(width * height);
+        // for y in (height - 3)..height {
+        //     for x in 0..width {
+        //         if !((y == height - 1) && x == 4 || x == 6) {
+        //             bricks.push((x as i32, y as i32))
+        //         }
+        //     }
+        // }
         Wall {
             width,
             height,
             brick_width,
-            bricks
-            // bricks: Vec::with_capacity(width * height),
+            // bricks
+            bricks: Vec::with_capacity(width * height),
         }
     }
 
@@ -310,6 +311,8 @@ impl Store {
             _ => 0,
         };
         x0 += dx;
+        // https://en.wikipedia.org/wiki/Rotation_of_axes
+        // rotate 90 degree
         for c in next_coords.iter_mut() {
             c.0 += dx;
             *c = (x0 + y0 - c.1, y0 + c.0 - x0);
@@ -351,8 +354,6 @@ struct Canvas {
     store: Store,
     top_y: f64,
 }
-
-use stdweb::web::TextAlign::*;
 
 impl Canvas {
     fn new(selector: &str, store: Store) -> Canvas {
@@ -400,6 +401,7 @@ impl Canvas {
         context.fill_text("speed up: ↓ , k , s", x_center, 100.0, None);
         context.fill_text("drop: enter , space", x_center, 120.0, None);
         context.fill_text("pause: p", x_center, 140.0, None);
+        context.fill_text("restart: r", x_center, 160.0, None);
 
         Canvas {
             canvas,
@@ -496,6 +498,7 @@ impl Animation {
                     c.store.pause_toggle();
                     return;
                 }
+                "r" => c.store.restart(),
                 " " => {
                     e.prevent_default();
                     c.store.drop_down();

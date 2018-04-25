@@ -3,10 +3,10 @@ extern crate stdweb;
 
 use stdweb::traits::*;
 use stdweb::unstable::TryInto;
+use stdweb::web::TextAlign::*;
 use stdweb::web::event::KeyDownEvent;
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, window, CanvasRenderingContext2d};
-use stdweb::web::TextAlign::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -70,7 +70,6 @@ fn get_drop_coords(d: BrickDrop, init_x: i32) -> DropCoords {
     }
 }
 
-#[derive(Debug)]
 struct Wall {
     width: usize,
     height: usize,
@@ -80,19 +79,10 @@ struct Wall {
 
 impl Wall {
     fn new(width: usize, height: usize, brick_width: u32) -> Wall {
-        // let mut bricks = Vec::with_capacity(width * height);
-        // for y in (height - 3)..height {
-        //     for x in 0..width {
-        //         if !((y == height - 1) && x == 4 || x == 6) {
-        //             bricks.push((x as i32, y as i32))
-        //         }
-        //     }
-        // }
         Wall {
             width,
             height,
             brick_width,
-            // bricks
             bricks: Vec::with_capacity(width * height),
         }
     }
@@ -120,7 +110,6 @@ fn derived_speed(level: u32) -> f64 {
     }
 }
 
-#[derive(Debug)]
 struct Store {
     wall: Wall,
     current_drop: BrickDrop,
@@ -129,8 +118,8 @@ struct Store {
     score: u32,
     level: u32,
     init_x: i32,
-    playing: bool,
     speed: f64,
+    playing: bool,
     game_over: bool,
 }
 
@@ -146,8 +135,8 @@ impl Store {
             score: 0,
             level: 1,
             init_x,
-            playing: false,
             speed: 300.0,
+            playing: false,
             game_over: false,
         }
     }
@@ -157,7 +146,7 @@ impl Store {
     fn will_crash(&self, new_drop_coords: DropCoords) -> bool {
         new_drop_coords
             .iter()
-            .any(|c| c.0 < 0 || c.0 > self.wall.width as i32 - 1 || c.1 >= self.wall.height as i32)
+            .any(|c| c.0 < 0 || c.0 >= self.wall.width as i32 || c.1 >= self.wall.height as i32)
             || new_drop_coords
                 .iter()
                 .any(|&d| self.wall.check_brick_existing(d))
@@ -166,23 +155,20 @@ impl Store {
 
 impl Store {
     fn build_wall(&mut self) {
-        let mut game_over = false;
         let width = self.wall.width as i32;
         self.wall.bricks.extend(self.current_drop_coords.iter());
         self.wall
             .bricks
             .sort_by(|a, b| (a.1 * width + a.0).cmp(&(b.1 * width + b.0)));
-        let (mut new_bricks, mut temp, rows, _) = self.wall.bricks.iter().fold(
+        let (mut new_bricks, mut temp, rows, _, game_over) = self.wall.bricks.iter().fold(
             (
                 Vec::<(i32, i32)>::new(),
                 Vec::<(i32, i32)>::new(),
                 Vec::<i32>::new(),
                 0,
+                false,
             ),
-            |(mut n, mut temp, mut rows, prev_y), &(x, y)| {
-                if y < 0 {
-                    game_over = true;
-                }
+            |(mut n, mut temp, mut rows, prev_y, _), &(x, y)| {
                 if y == prev_y || temp.len() == 0 {
                     temp.push((x, y));
                     if temp.len() == self.wall.width {
@@ -194,7 +180,7 @@ impl Store {
                     temp.clear();
                     temp.push((x, y));
                 }
-                (n, temp, rows, y)
+                (n, temp, rows, y, y < 0)
             },
         );
 
@@ -347,7 +333,6 @@ impl Store {
     }
 }
 
-#[derive(Debug)]
 struct Canvas {
     canvas: CanvasElement,
     context: CanvasRenderingContext2d,
@@ -363,21 +348,19 @@ impl Canvas {
             .unwrap()
             .try_into()
             .unwrap();
-
         let Wall {
             width,
             height,
             brick_width,
             ..
         } = store.wall;
-
         let context: CanvasRenderingContext2d = canvas.get_context().unwrap();
         let translate_y = 5f64 * (brick_width + 1) as f64;
         let dist = brick_width as f64 + 1.0;
+
         canvas.set_width(width as u32 * (brick_width + 1));
         canvas.set_height((height + 5) as u32 * (brick_width + 1));
         context.translate(0f64, translate_y);
-
         context.set_fill_style_color("#eee");
         for y in 0..height {
             for x in 0..width {
@@ -392,7 +375,7 @@ impl Canvas {
 
         let x_center = canvas.width() as f64 / 2.0;
         context.set_fill_style_color("#333");
-        context.set_font("14px consolas,\"Liberation Mono\",courier,monospace");
+        context.set_font("14px consolas,courier,monospace");
         context.set_text_align(Center);
         context.fill_text("start: any", x_center, 20.0, None);
         context.fill_text("left: ← , j , a", x_center, 40.0, None);
@@ -417,7 +400,7 @@ impl Canvas {
         let brick_width = self.store.wall.brick_width as f64;
         let dist = brick_width + 1.0;
         let x_center = self.canvas.width() as f64 / 2.0;
-        let score = String::from("Score/Level: ") + &self.store.score.to_string() + "/"
+        let score_level = String::from("Score/Level: ") + &self.store.score.to_string() + "/"
             + &self.store.level.to_string();
 
         self.context.clear_rect(
@@ -442,7 +425,7 @@ impl Canvas {
         self.context.set_fill_style_color("#333");
         self.context.set_font("12px sans-serif");
         self.context
-            .fill_text(&score, x_center, self.top_y + 10.0, None);
+            .fill_text(&score_level, x_center, self.top_y + 10.0, None);
 
         if self.store.game_over {
             self.context.set_font("14px sans-serif");
@@ -480,12 +463,9 @@ impl Animation {
             canvas: canvas_rc.clone(),
             time_stamp: 0.0,
         };
-
         let canvas_for_action = canvas_rc.clone();
+
         window().add_event_listener(move |e: KeyDownEvent| {
-            // js! {
-            //     console.log(@{format!("{:?}", e.key())})
-            // }
             let mut c = canvas_for_action.borrow_mut();
             match e.key().as_str() {
                 "ArrowUp" | "w" | "i" => c.store.rotate(),
@@ -537,7 +517,6 @@ impl Animation {
     }
 }
 
-#[derive(Debug)]
 struct Tetris {}
 
 impl Tetris {

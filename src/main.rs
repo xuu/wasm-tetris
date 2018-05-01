@@ -333,6 +333,28 @@ impl Store {
     }
 }
 
+macro_rules! draw_bricks {
+    ($context:expr, $bricks:expr, $brick_width:expr) => {{
+        let dist = $brick_width as f64 + 1.0;
+        for &(x, y) in $bricks.iter() {
+            $context.fill_rect(x as f64 * dist, y as f64 * dist, $brick_width, $brick_width);
+        }
+    }};
+    ($context:expr, $width:expr, $height:expr, $brick_width:expr) => {{
+        let dist = $brick_width as f64 + 1.0;
+        for y in 0..$height {
+            for x in 0..$width {
+                $context.fill_rect(
+                    x as f64 * dist,
+                    y as f64 * dist,
+                    $brick_width as f64,
+                    $brick_width as f64,
+                );
+            }
+        }
+    }};
+}
+
 struct Canvas {
     canvas: CanvasElement,
     context: CanvasRenderingContext2d,
@@ -356,22 +378,12 @@ impl Canvas {
         } = store.wall;
         let context: CanvasRenderingContext2d = canvas.get_context().unwrap();
         let translate_y = 5f64 * (brick_width + 1) as f64;
-        let dist = brick_width as f64 + 1.0;
 
         canvas.set_width(width as u32 * (brick_width + 1));
         canvas.set_height((height + 5) as u32 * (brick_width + 1));
         context.translate(0f64, translate_y);
         context.set_fill_style_color("#eee");
-        for y in 0..height {
-            for x in 0..width {
-                context.fill_rect(
-                    x as f64 * dist,
-                    y as f64 * dist,
-                    brick_width as f64,
-                    brick_width as f64,
-                );
-            }
-        }
+        draw_bricks!(context, width, height, brick_width);
 
         let x_center = canvas.width() as f64 / 2.0;
         context.set_fill_style_color("#333");
@@ -398,7 +410,6 @@ impl Canvas {
 impl Canvas {
     fn draw(&mut self) {
         let brick_width = self.store.wall.brick_width as f64;
-        let dist = brick_width + 1.0;
         let x_center = self.canvas.width() as f64 / 2.0;
         let score_level = String::from("Score/Level: ") + &self.store.score.to_string() + "/"
             + &self.store.level.to_string();
@@ -411,16 +422,12 @@ impl Canvas {
         );
 
         self.context.set_fill_style_color("#eee");
-        for y in 0..self.store.wall.height {
-            for x in 0..self.store.wall.width {
-                self.context.fill_rect(
-                    x as f64 * dist,
-                    y as f64 * dist,
-                    brick_width as f64,
-                    brick_width as f64,
-                );
-            }
-        }
+        draw_bricks!(
+            self.context,
+            self.store.wall.width,
+            self.store.wall.height,
+            brick_width
+        );
 
         self.context.set_fill_style_color("#333");
         self.context.set_font("12px sans-serif");
@@ -436,18 +443,14 @@ impl Canvas {
                 None,
             );
         } else {
-            for &(x, y) in get_drop_coords(self.store.next_drop, self.store.init_x).iter() {
-                self.context
-                    .fill_rect(x as f64 * dist, y as f64 * dist, brick_width, brick_width);
-            }
+            draw_bricks!(
+                self.context,
+                get_drop_coords(self.store.next_drop, self.store.init_x),
+                brick_width
+            );
         }
 
-        for (x, y) in self.store.get_bricks_snapshot() {
-            if y >= 0 {
-                self.context
-                    .fill_rect(x as f64 * dist, y as f64 * dist, brick_width, brick_width);
-            }
-        }
+        draw_bricks!(self.context, self.store.get_bricks_snapshot(), brick_width);
     }
 }
 

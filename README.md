@@ -27,3 +27,15 @@ $ cargo web start
 ```
 $ cargo web build
 ```
+
+## Reference
+
+* https://github.com/koute/cargo-web
+* https://github.com/koute/stdweb
+* https://doc.rust-lang.org/rust-by-example/
+* https://developer.mozilla.org/en-US/docs/WebAssembly
+* https://en.wikipedia.org/wiki/Tetris
+
+## License
+
+[MIT](http://opensource.org/licenses/MIT)

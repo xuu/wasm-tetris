@@ -168,7 +168,7 @@ impl Store {
                 0,
                 false,
             ),
-            |(mut n, mut temp, mut rows, prev_y, _), &(x, y)| {
+            |(mut n, mut temp, mut rows, prev_y, game_over), &(x, y)| {
                 if y == prev_y || temp.len() == 0 {
                     temp.push((x, y));
                     if temp.len() == self.wall.width {
@@ -180,7 +180,7 @@ impl Store {
                     temp.clear();
                     temp.push((x, y));
                 }
-                (n, temp, rows, y, y < 0)
+                (n, temp, rows, y, game_over || y < 0)
             },
         );
 
@@ -211,7 +211,7 @@ impl Store {
 
 impl Store {
     fn move_down(&mut self) -> bool {
-        if !self.playing {
+        if !self.playing || self.game_over {
             return false;
         }
         let mut new_drop_coords = self.current_drop_coords.clone();
@@ -243,7 +243,7 @@ impl Store {
 
 impl Store {
     fn move_left(&mut self) {
-        if !self.playing {
+        if !self.playing || self.game_over {
             return;
         }
         let mut new_drop_coords = self.current_drop_coords.clone();
@@ -258,7 +258,7 @@ impl Store {
 
 impl Store {
     fn move_right(&mut self) {
-        if !self.playing {
+        if !self.playing || self.game_over {
             return;
         }
         let mut new_drop_coords = self.current_drop_coords.clone();
@@ -273,7 +273,7 @@ impl Store {
 
 impl Store {
     fn rotate(&mut self) {
-        if self.current_drop == O || !self.playing {
+        if self.current_drop == O || !self.playing || self.game_over {
             return;
         }
         let mut next_coords = self.current_drop_coords.clone();
@@ -328,7 +328,7 @@ impl Store {
 impl Store {
     fn get_bricks_snapshot(&self) -> Vec<(i32, i32)> {
         let mut bricks = self.wall.bricks.clone();
-        bricks.extend(self.current_drop_coords.iter());
+        bricks.extend(self.current_drop_coords.iter().filter(|c| c.1 >= 0));
         bricks
     }
 }

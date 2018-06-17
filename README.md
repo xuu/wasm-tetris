@@ -1,22 +1,24 @@
-# WebAssembly Tetris written in Rust
+# Wasm Tetris
+
+WebAssembly Tetris written in Rust.
 
 ![Snapshot](/static/snapshot.png)
 
 ## Development setup
 
-Necessary compiler target `wasm32-unknown-unknown` (Rust nightly only)
+Necessary compiler target `wasm32-unknown-unknown` (Rust nightly only):
 
 ```
 $ rustup target add wasm32-unknown-unknown
 ```
 
-Install [cargo-web](https://github.com/koute/cargo-web)
+Install [cargo-web](https://github.com/koute/cargo-web):
 
 ```
 $ cargo install cargo-web
 ```
 
-Start a web dev server
+Start a web dev server:
 
 ```
 $ cargo web start
@@ -28,13 +30,12 @@ $ cargo web start
 $ cargo web build
 ```
 
-## Reference
+## References
 
-* https://github.com/koute/cargo-web
-* https://github.com/koute/stdweb
-* https://doc.rust-lang.org/rust-by-example/
-* https://developer.mozilla.org/en-US/docs/WebAssembly
-* https://en.wikipedia.org/wiki/Tetris
+- https://github.com/koute/cargo-web
+- https://github.com/koute/stdweb
+- https://developer.mozilla.org/en-US/docs/WebAssembly
+- https://en.wikipedia.org/wiki/Tetris
 
 ## License
 

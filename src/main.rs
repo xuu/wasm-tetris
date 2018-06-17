@@ -71,19 +71,19 @@ fn get_drop_coords(d: BrickDrop, init_x: i32) -> DropCoords {
 }
 
 struct Wall {
-    width: usize,
-    height: usize,
+    cols: usize,
+    rows: usize,
     brick_width: u32,
     bricks: Vec<(i32, i32)>,
 }
 
 impl Wall {
-    fn new(width: usize, height: usize, brick_width: u32) -> Wall {
+    fn new(cols: usize, rows: usize, brick_width: u32) -> Wall {
         Wall {
-            width,
-            height,
+            cols,
+            rows,
             brick_width,
-            bricks: Vec::with_capacity(width * height),
+            bricks: Vec::with_capacity(cols * rows),
         }
     }
 
@@ -126,7 +126,7 @@ struct Store {
 impl Store {
     fn new(wall: Wall) -> Store {
         let current_drop = gen_random_drop();
-        let init_x = wall.width as i32 / 2 - 1;
+        let init_x = wall.cols as i32 / 2 - 1;
         Store {
             wall,
             current_drop,
@@ -146,7 +146,7 @@ impl Store {
     fn will_crash(&self, new_drop_coords: DropCoords) -> bool {
         new_drop_coords
             .iter()
-            .any(|c| c.0 < 0 || c.0 >= self.wall.width as i32 || c.1 >= self.wall.height as i32)
+            .any(|c| c.0 < 0 || c.0 >= self.wall.cols as i32 || c.1 >= self.wall.rows as i32)
             || new_drop_coords
                 .iter()
                 .any(|&d| self.wall.check_brick_existing(d))
@@ -155,11 +155,11 @@ impl Store {
 
 impl Store {
     fn build_wall(&mut self) {
-        let width = self.wall.width as i32;
+        let cols = self.wall.cols as i32;
         self.wall.bricks.extend(self.current_drop_coords.iter());
         self.wall
             .bricks
-            .sort_by(|a, b| (a.1 * width + a.0).cmp(&(b.1 * width + b.0)));
+            .sort_by(|a, b| (a.1 * cols + a.0).cmp(&(b.1 * cols + b.0)));
         let (mut new_bricks, mut temp, rows, _, game_over) = self.wall.bricks.iter().fold(
             (
                 Vec::<(i32, i32)>::new(),
@@ -171,7 +171,7 @@ impl Store {
             |(mut n, mut temp, mut rows, prev_y, game_over), &(x, y)| {
                 if y == prev_y || temp.len() == 0 {
                     temp.push((x, y));
-                    if temp.len() == self.wall.width {
+                    if temp.len() == self.wall.cols {
                         rows.push(y);
                         temp.clear();
                     }
@@ -283,8 +283,8 @@ impl Store {
         let adjust_dir = (
             x0 > 1 && !self.wall.check_brick_existing((x0 - 2, y0)),
             x0 > 0 && !self.wall.check_brick_existing((x0 - 1, y0)),
-            x0 < (self.wall.width - 1) as i32 && !self.wall.check_brick_existing((x0 + 1, y0)),
-            x0 < (self.wall.width - 2) as i32 && !self.wall.check_brick_existing((x0 + 2, y0)),
+            x0 < (self.wall.cols - 1) as i32 && !self.wall.check_brick_existing((x0 + 1, y0)),
+            x0 < (self.wall.cols - 2) as i32 && !self.wall.check_brick_existing((x0 + 2, y0)),
         );
         let dx = match adjust_dir {
             (false, true, true, true) if self.current_drop == I => 1,
@@ -340,10 +340,10 @@ macro_rules! draw_bricks {
             $context.fill_rect(x as f64 * dist, y as f64 * dist, $brick_width, $brick_width);
         }
     }};
-    ($context:expr, $width:expr, $height:expr, $brick_width:expr) => {{
+    ($context:expr, $cols:expr, $rows:expr, $brick_width:expr) => {{
         let dist = $brick_width as f64 + 1.0;
-        for y in 0..$height {
-            for x in 0..$width {
+        for y in 0..$rows {
+            for x in 0..$cols {
                 $context.fill_rect(
                     x as f64 * dist,
                     y as f64 * dist,
@@ -371,19 +371,19 @@ impl Canvas {
             .try_into()
             .unwrap();
         let Wall {
-            width,
-            height,
+            cols,
+            rows,
             brick_width,
             ..
         } = store.wall;
         let context: CanvasRenderingContext2d = canvas.get_context().unwrap();
         let translate_y = 5f64 * (brick_width + 1) as f64;
 
-        canvas.set_width(width as u32 * (brick_width + 1));
-        canvas.set_height((height + 5) as u32 * (brick_width + 1));
+        canvas.set_width(cols as u32 * (brick_width + 1));
+        canvas.set_height((rows + 5) as u32 * (brick_width + 1));
         context.translate(0f64, translate_y);
         context.set_fill_style_color("#eee");
-        draw_bricks!(context, width, height, brick_width);
+        draw_bricks!(context, cols, rows, brick_width);
 
         let x_center = canvas.width() as f64 / 2.0;
         context.set_fill_style_color("#333");
@@ -424,8 +424,8 @@ impl Canvas {
         self.context.set_fill_style_color("#eee");
         draw_bricks!(
             self.context,
-            self.store.wall.width,
-            self.store.wall.height,
+            self.store.wall.cols,
+            self.store.wall.rows,
             brick_width
         );
 
@@ -523,8 +523,8 @@ impl Animation {
 struct Tetris {}
 
 impl Tetris {
-    fn new(wall_width: usize, wall_height: usize, brick_width: u32) {
-        let wall = Wall::new(wall_width, wall_height, brick_width);
+    fn new(cols: usize, rows: usize, brick_width: u32) {
+        let wall = Wall::new(cols, rows, brick_width);
         let store = Store::new(wall);
         let canvas = Canvas::new("canvas", store);
         Animation::new(canvas);

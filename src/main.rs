@@ -359,7 +359,7 @@ struct Canvas {
     canvas: CanvasElement,
     context: CanvasRenderingContext2d,
     store: Store,
-    top_y: f64,
+    y_translated: f64,
 }
 
 impl Canvas {
@@ -377,32 +377,38 @@ impl Canvas {
             ..
         } = store.wall;
         let context: CanvasRenderingContext2d = canvas.get_context().unwrap();
-        let translate_y = 5f64 * (brick_width + 1) as f64;
+        let y_translated = -5f64 * (brick_width + 1) as f64;
 
         canvas.set_width(cols as u32 * (brick_width + 1));
         canvas.set_height((rows + 5) as u32 * (brick_width + 1));
-        context.translate(0f64, translate_y);
+        context.translate(0f64, -y_translated);
         context.set_fill_style_color("#eee");
         draw_bricks!(context, cols, rows, brick_width);
 
-        let x_center = canvas.width() as f64 / 2.0;
+        let x_text = canvas.width() as f64 / 2.0;
+        let tips = [
+            "start: any",
+            "left: ← , j , a",
+            "right: → , l , d",
+            "rotate: ↑ , i , w",
+            "speed up: ↓ , k , s",
+            "drop: enter , space",
+            "pause: p",
+            "restart: r",
+        ];
+
         context.set_fill_style_color("#333");
         context.set_font("14px consolas,courier,monospace");
         context.set_text_align(Center);
-        context.fill_text("start: any", x_center, 20.0, None);
-        context.fill_text("left: ← , j , a", x_center, 40.0, None);
-        context.fill_text("right: → , l , d", x_center, 60.0, None);
-        context.fill_text("rotate: ↑ , i , w", x_center, 80.0, None);
-        context.fill_text("speed up: ↓ , k , s", x_center, 100.0, None);
-        context.fill_text("drop: enter , space", x_center, 120.0, None);
-        context.fill_text("pause: p", x_center, 140.0, None);
-        context.fill_text("restart: r", x_center, 160.0, None);
+        tips.iter().enumerate().for_each(|(i, x)| {
+            context.fill_text(x, x_text, (i as f64 + 1.0) * 20.0, None);
+        });
 
         Canvas {
             canvas,
             context,
             store,
-            top_y: -translate_y,
+            y_translated,
         }
     }
 }
@@ -410,13 +416,13 @@ impl Canvas {
 impl Canvas {
     fn draw(&mut self) {
         let brick_width = self.store.wall.brick_width as f64;
-        let x_center = self.canvas.width() as f64 / 2.0;
+        let x_text = self.canvas.width() as f64 / 2.0;
         let score_level = String::from("Score/Level: ") + &self.store.score.to_string() + "/"
             + &self.store.level.to_string();
 
         self.context.clear_rect(
             0.0,
-            self.top_y,
+            self.y_translated,
             self.canvas.width() as f64,
             self.canvas.height() as f64,
         );
@@ -432,14 +438,14 @@ impl Canvas {
         self.context.set_fill_style_color("#333");
         self.context.set_font("12px sans-serif");
         self.context
-            .fill_text(&score_level, x_center, self.top_y + 10.0, None);
+            .fill_text(&score_level, x_text, self.y_translated + 10.0, None);
 
         if self.store.game_over {
             self.context.set_font("14px sans-serif");
             self.context.fill_text(
                 "Game Over! Press `enter` restart.",
-                x_center,
-                self.top_y + 30.0,
+                x_text,
+                self.y_translated + 30.0,
                 None,
             );
         } else {

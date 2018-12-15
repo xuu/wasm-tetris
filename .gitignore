@@ -2,4 +2,3 @@
 /target
 **/*.rs.bk
 /wasm
-wasm-pack.log

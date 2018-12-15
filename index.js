@@ -1,5 +1,5 @@
-const tetris = import('./wasm/wasm_tetris.js');
+const js = import('./wasm/wasm_tetris');
 
-tetris.then(t => {
-  t.play('canvas', 25, 20, 10);
+js.then(tetris => {
+  tetris.play('canvas', 25, 18, 10);
 });

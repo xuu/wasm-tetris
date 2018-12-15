@@ -398,12 +398,12 @@ impl Canvas {
 
         let x_text = canvas.width() as f64 / 2.0;
         let tips = [
-            "start: any",
-            "left: ← , j , a",
-            "right: → , l , d",
-            "rotate: ↑ , i , w",
-            "speed up: ↓ , k , s",
-            "drop: enter , space",
+            "start: enter",
+            "left: ←/j/a",
+            "right: →/l/d",
+            "rotate: ↑/i/w",
+            "speed up: ↓/k/s",
+            "drop: enter/space",
             "pause: p",
             "restart: r",
         ];

@@ -2,40 +2,39 @@
 
 A Rust/WebAssembly 'learning by doing' example.
 
-![Snapshot](/static/snapshot.png)
+![Snapshot](/snapshot.png)
 
 ## Development setup
 
-Necessary compiler target `wasm32-unknown-unknown` (Rust nightly only):
+Install Rust compiler target `wasm32-unknown-unknown`:
 
 ```
 $ rustup target add wasm32-unknown-unknown
 ```
 
-Install [cargo-web](https://github.com/koute/cargo-web):
+Install JS dependencies:
 
 ```
-$ cargo install cargo-web
+$ npm install
 ```
 
-Start a web dev server:
+Build:
 
 ```
-$ cargo web start
+$ ./build.sh
 ```
 
-## Build
+Start webpack dev server:
 
 ```
-$ cargo web build
+npm run dev
 ```
 
 ## References
 
-- https://github.com/koute/cargo-web
-- https://github.com/koute/stdweb
-- https://developer.mozilla.org/en-US/docs/WebAssembly
 - https://en.wikipedia.org/wiki/Tetris
+- https://github.com/rustwasm/wasm-bindgen
+- https://developer.mozilla.org/en-US/docs/WebAssembly
 
 ## License
 

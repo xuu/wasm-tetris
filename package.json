@@ -1,6 +1,6 @@
 {
   "name": "wasm-tetris",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "A Rust/WebAssembly 'learning by doing' example.",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/xuu/wasm-tetris/issues"
   },

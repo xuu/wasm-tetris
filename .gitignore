@@ -2,4 +2,5 @@
 /target
 **/*.rs.bk
 /wasm
+/dist
 package-lock.json

@@ -1,3 +1,6 @@
 /node_modules
 /target
 **/*.rs.bk
+/wasm
+/dist
+package-lock.json

@@ -1,48 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Wasm Tetris</title>
+    <style>
+      body {
+        text-align: center;
+        font-family: Helvetica, Arial, sans-serif;
+      }
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <title>Wasm Tetris</title>
-  <style>
-    body {
-      text-align: center;
-      font-family: Helvetica, Arial, sans-serif;
-    }
+      h1 {
+        font-weight: 100;
+      }
 
-    h1 {
-      font-weight: 100;
-    }
+      canvas {
+        padding: 2px;
+        border: 1px solid #333;
+      }
 
-    sup {
-      display: inline-block;
-      font-size: 0.5em;
-      color: #dea584;
-      margin-left: -4em;
-      transform: translate(-6em, -0.55em);
-      word-spacing: 0.3em;
-    }
+      code {
+        font-family: consolas, courier, monospace;
+        font-size: 12px;
+      }
+    </style>
+  </head>
 
-    canvas {
-      padding: 2px;
-      border: 1px solid #333;
-    }
-  </style>
-</head>
-
-<body>
-  <h1>
-    WebAssembly
-    <sup>by Rust</sup>
-    Tetris
-  </h1>
-  <canvas id="canvas"></canvas>
-  <p>
-      <a href="https://github.com/xuu/wasm-tetris">GitHub</a>
-  </p>
-  <script src="wasm-tetris.js"></script>
-</body>
-
+  <body>
+    <h1>WebAssembly Tetris</h1>
+    <p><canvas id="canvas"></canvas></p>
+    <p>
+      <code> start: enter</code><br />
+      <code>
+        left/rotate/right/speed up: '←/↑/→/↓' or 'j/i/l/k' or 'a/w/d/s'
+      </code>
+      <br />
+      <code>drop: enter/space</code><br />
+      <code>pause: p</code><br />
+      <code>restart: r </code>
+    </p>
+    <p><a href="https://github.com/xuu/wasm-tetris">GitHub</a></p>
+  <script type="text/javascript" src="index.js"></script></body>
 </html>

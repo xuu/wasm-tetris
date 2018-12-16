@@ -333,7 +333,7 @@ impl Store {
     }
 }
 
-macro_rules! draw_bricks {
+macro_rules! render {
     ($context:expr, $bricks:expr, $brick_width:expr) => {{
         let dist = $brick_width as f64 + 1.0;
         for &(x, y) in $bricks.iter() {
@@ -355,28 +355,19 @@ macro_rules! draw_bricks {
     }};
 }
 
-fn window() -> web_sys::Window {
-    web_sys::window().expect("no global `window` exists")
-}
-
-struct Canvas {
-    canvas: HtmlCanvasElement,
-    context: CanvasRenderingContext2d,
+struct Tetris {
     store: Store,
+    context: CanvasRenderingContext2d,
+    width: u32,
+    height: u32,
     y_translated: f64,
+    color_light: JsValue,
+    color_dark: JsValue,
 }
 
-impl Canvas {
-    fn new(selector: &str, store: Store) -> Canvas {
-        let document = window().document().unwrap();
-        let canvas = document
-            .get_element_by_id(selector)
-            .expect("canvas element not found");
-        let canvas: HtmlCanvasElement = canvas
-            .dyn_into::<HtmlCanvasElement>()
-            .map_err(|_| ())
-            .unwrap();
-        let context = canvas
+impl Tetris {
+    fn new(canvas_element: HtmlCanvasElement, store: Store) -> Tetris {
+        let context = canvas_element
             .get_context("2d")
             .unwrap()
             .unwrap()
@@ -388,127 +379,118 @@ impl Canvas {
             brick_width,
             ..
         } = store.wall;
-        let y_translated = -5f64 * (brick_width + 1) as f64;
+        let y_translated = 8f64 * (brick_width + 1) as f64;
+        let width = cols as u32 * (brick_width + 1);
+        let height = (rows + 8) as u32 * (brick_width + 1);
+        let color_light = JsValue::from_str("#eee");
+        let color_dark = JsValue::from_str("#333");
 
-        canvas.set_width(cols as u32 * (brick_width + 1));
-        canvas.set_height((rows + 5) as u32 * (brick_width + 1));
-        context.translate(0f64, -y_translated).unwrap();
-        context.set_fill_style(&JsValue::from_str("#eee"));
-        draw_bricks!(context, cols, rows, brick_width);
-
-        let x_text = canvas.width() as f64 / 2.0;
-        let tips = [
-            "start: enter",
-            "left: ←/j/a",
-            "right: →/l/d",
-            "rotate: ↑/i/w",
-            "speed up: ↓/k/s",
-            "drop: enter/space",
-            "pause: p",
-            "restart: r",
-        ];
-
-        context.set_fill_style(&JsValue::from_str("#333"));
-        context.set_font("14px consolas,courier,monospace");
+        canvas_element.set_width(width);
+        canvas_element.set_height(height);
+        context.translate(0f64, y_translated).unwrap();
         context.set_text_align("center");
-        tips.iter().enumerate().for_each(|(i, x)| {
-            context
-                .fill_text(x, x_text, (i as f64 + 1.0) * 20.0)
-                .unwrap();
-        });
+        context.set_fill_style(&color_light);
+        render!(context, cols, rows, brick_width);
 
-        Canvas {
-            canvas,
-            context,
+        Tetris {
             store,
+            context,
+            width,
+            height,
             y_translated,
+            color_light,
+            color_dark,
         }
     }
 }
 
-impl Canvas {
-    fn draw(&mut self) {
-        let brick_width = self.store.wall.brick_width as f64;
-        let x_text = self.canvas.width() as f64 / 2.0;
+impl Tetris {
+    fn render(&mut self) {
+        let y0 = -self.y_translated;
+        let Wall {
+            brick_width,
+            rows,
+            cols,
+            ..
+        } = self.store.wall;
+        let x_center = self.width as f64 / 2.0;
         let score_level = String::from("Score/Level: ")
             + &self.store.score.to_string()
             + "/"
             + &self.store.level.to_string();
 
-        self.context.clear_rect(
-            0.0,
-            self.y_translated,
-            self.canvas.width() as f64,
-            self.canvas.height() as f64,
-        );
+        self.context
+            .clear_rect(0.0, y0, self.width as f64, self.height as f64);
 
-        self.context.set_fill_style(&JsValue::from_str("#eee"));
-        draw_bricks!(
-            self.context,
-            self.store.wall.cols,
-            self.store.wall.rows,
-            brick_width
-        );
+        self.context.set_fill_style(&self.color_light);
+        render!(self.context, cols, rows, brick_width);
 
-        self.context.set_fill_style(&JsValue::from_str("#333"));
+        self.context.set_fill_style(&self.color_dark);
         self.context.set_font("12px sans-serif");
         self.context
-            .fill_text(&score_level, x_text, self.y_translated + 10.0)
+            .fill_text(&score_level, x_center, y0 + 10.0)
             .unwrap();
 
         if self.store.game_over {
             self.context.set_font("14px sans-serif");
             self.context
-                .fill_text(
-                    "Game Over! Press `enter` restart.",
-                    x_text,
-                    self.y_translated + 30.0,
-                )
+                .fill_text("Game Over!", x_center, y0 + 30.0)
+                .unwrap();
+            self.context
+                .fill_text("Press `enter` restart.", x_center, y0 + 50.0)
                 .unwrap();
         } else {
-            draw_bricks!(
+            render!(
                 self.context,
                 get_drop_coords(self.store.next_drop, self.store.init_x),
-                brick_width
+                brick_width as f64
             );
         }
 
-        draw_bricks!(self.context, self.store.get_bricks_snapshot(), brick_width);
+        render!(
+            self.context,
+            self.store.get_bricks_snapshot(),
+            brick_width as f64
+        );
     }
 }
 
-fn setup_keyboard_event(canvas: Rc<RefCell<Canvas>>) {
+fn window() -> web_sys::Window {
+    web_sys::window().expect("no global `window` exists")
+}
+
+fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
     let closure = Closure::wrap(Box::new(move |e: KeyboardEvent| {
-        let mut c = canvas.borrow_mut();
+        let mut t = tetris.borrow_mut();
         match e.key().as_str() {
-            "ArrowUp" | "w" | "i" => c.store.rotate(),
-            "ArrowRight" | "d" | "l" => c.store.move_right(),
-            "ArrowLeft" | "a" | "j" => c.store.move_left(),
+            "ArrowUp" | "w" | "i" => t.store.rotate(),
+            "ArrowRight" | "d" | "l" => t.store.move_right(),
+            "ArrowLeft" | "a" | "j" => t.store.move_left(),
             "ArrowDown" | "s" | "k" => {
-                c.store.move_down();
+                t.store.move_down();
             }
             "p" => {
-                c.store.pause_toggle();
+                t.store.pause_toggle();
                 return;
             }
-            "r" => c.store.restart(),
+            "r" => t.store.restart(),
             " " => {
                 // e.prevent_default();
-                c.store.drop_down();
+                t.store.drop_down();
             }
             "Enter" => {
-                if c.store.game_over {
-                    c.store.restart();
+                if t.store.game_over {
+                    t.store.restart();
                 } else {
-                    c.store.drop_down();
+                    t.store.drop_down();
                 }
             }
             &_ => (),
         }
-        if !c.store.playing {
-            c.store.pause_toggle()
+        if !t.store.playing {
+            t.store.pause_toggle()
         }
-        c.draw();
+        t.render();
     }) as Box<FnMut(_)>);
 
     window()
@@ -525,36 +507,32 @@ fn request_animation_frame(f: &Closure<FnMut()>) {
 }
 
 #[wasm_bindgen]
-pub fn play(canvas_id: &str, rows: usize, cols: usize, brick_width: u32) {
+pub fn play(canvas_element: HtmlCanvasElement, rows: usize, cols: usize, brick_width: u32) {
     let wall = Wall::new(rows, cols, brick_width);
     let store = Store::new(wall);
-    let canvas = Canvas::new(canvas_id, store);
-    let canvas = Rc::new(RefCell::new(canvas));
+    let tetris = Tetris::new(canvas_element, store);
+    let tetris = Rc::new(RefCell::new(tetris));
 
-    setup_keyboard_event(canvas.clone());
+    setup_keyboard_event(tetris.clone());
 
     // https://github.com/rustwasm/wasm-bindgen/blob/3d2f548ce2/examples/request-animation-frame/src/lib.rs
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
+    let mut time_stamp = 0.0;
 
-    {
-        let mut time_stamp = 0.0;
-        let canvas = canvas.clone();
-
-        *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-            let time = window().performance().unwrap().now();
-            if time - time_stamp > canvas.borrow().store.speed {
-                time_stamp = time;
-                let mut c = canvas.borrow_mut();
-                if c.store.playing && !c.store.game_over {
-                    c.store.move_down();
-                    c.draw();
-                }
+    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+        let time = window().performance().unwrap().now();
+        if time - time_stamp > tetris.borrow().store.speed {
+            time_stamp = time;
+            let mut t = tetris.borrow_mut();
+            if t.store.playing && !t.store.game_over {
+                t.store.move_down();
+                t.render();
             }
+        }
 
-            request_animation_frame(f.borrow().as_ref().unwrap());
-        }) as Box<FnMut()>));
-    }
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }) as Box<FnMut()>));
 
     request_animation_frame(g.borrow().as_ref().unwrap());
 }

@@ -19,12 +19,27 @@
         padding: 2px;
         border: 1px solid #333;
       }
+
+      code {
+        font-family: consolas, courier, monospace;
+        font-size: 12px;
+      }
     </style>
   </head>
 
   <body>
     <h1>WebAssembly Tetris</h1>
-    <canvas id="canvas"></canvas>
+    <p><canvas id="canvas"></canvas></p>
+    <p>
+      <code> start: enter</code><br />
+      <code>
+        left/rotate/right/speed up: '←/↑/→/↓' or 'j/i/l/k' or 'a/w/d/s'
+      </code>
+      <br />
+      <code>drop: enter/space</code><br />
+      <code>pause: p</code><br />
+      <code>restart: r </code>
+    </p>
     <p><a href="https://github.com/xuu/wasm-tetris">GitHub</a></p>
   </body>
 </html>

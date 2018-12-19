@@ -6,10 +6,11 @@ A Rust/WebAssembly 'learning by doing' example.
 
 ## Development setup
 
-Install Rust compiler target `wasm32-unknown-unknown`:
+Install Rust compiler target `wasm32-unknown-unknown` and `wasm-bindgen`:
 
 ```
 $ rustup target add wasm32-unknown-unknown
+$ cargo install wasm-bindgen-cli
 ```
 
 Install JS dependencies:

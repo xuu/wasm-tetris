@@ -1,6 +1,6 @@
 {
   "name": "wasm-tetris",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A Rust/WebAssembly 'learning by doing' example.",
   "main": "index.js",
   "scripts": {
@@ -19,9 +19,11 @@
   },
   "homepage": "https://github.com/xuu/wasm-tetris#readme",
   "devDependencies": {
+    "@wasm-tool/wasm-pack-plugin": "0.2.1",
     "html-webpack-plugin": "^3.2.0",
-    "webpack": "^4.11.1",
+    "text-encoding": "^0.7.0",
+    "webpack": "^4.29.4",
     "webpack-cli": "^3.1.1",
-    "webpack-dev-server": "^3.1.0"
+    "webpack-dev-server": "^3.2.1"
   }
 }

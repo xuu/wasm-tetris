@@ -1,6 +1,8 @@
 /node_modules
 /target
 **/*.rs.bk
-/wasm
+**/*.log
+/bin
+/pkg
 /dist
 package-lock.json

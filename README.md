@@ -19,16 +19,10 @@ Install JS dependencies:
 $ npm install
 ```
 
-Build:
-
-```
-$ ./build.sh
-```
-
 Start webpack dev server:
 
 ```
-npm run dev
+$ npm run dev
 ```
 
 ## References

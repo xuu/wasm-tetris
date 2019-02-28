@@ -1,5 +1,5 @@
-const js = import('./wasm/wasm_tetris');
+const rust = import('./pkg/wasm_tetris');
 
-js.then(tetris => {
+rust.then(tetris => {
   tetris.play(document.getElementById('canvas'), 25, 18, 10);
 });

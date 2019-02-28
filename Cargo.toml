@@ -1,6 +1,6 @@
 [package]
-name = "wasm-tetris"
-version = "2.0.0"
+name = "wasm_tetris"
+version = "2.0.1"
 authors = ["axu <axu701@gmail.com>"]
 edition = "2018"
 
@@ -8,7 +8,7 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasm-bindgen = "0.2"
+wasm-bindgen = "0.2.37"
 js-sys = "0.3.6"
 
 [dependencies.web-sys]

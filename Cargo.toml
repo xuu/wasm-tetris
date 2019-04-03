@@ -3,6 +3,9 @@ name = "wasm_tetris"
 version = "2.0.1"
 authors = ["axu <axu701@gmail.com>"]
 edition = "2018"
+description = "Tetris game WebAssembly demo"
+repository = "https://github.com/xuu/wasm-tetris"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib"]

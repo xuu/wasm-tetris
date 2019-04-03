@@ -1,6 +1,6 @@
 # Wasm Tetris
 
-A Rust/WebAssembly 'learning by doing' example.
+Tetris game WebAssembly demo.
 
 ![Snapshot](/snapshot.png)
 

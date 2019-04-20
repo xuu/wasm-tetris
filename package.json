@@ -1,7 +1,7 @@
 {
   "name": "wasm-tetris",
   "version": "2.0.1",
-  "description": "A Rust/WebAssembly 'learning by doing' example.",
+  "description": "Tetris game WebAssembly demo.",
   "main": "index.js",
   "scripts": {
     "build": "webpack",

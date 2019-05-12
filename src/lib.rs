@@ -123,9 +123,11 @@ struct Store {
 }
 
 impl Store {
-    fn new(wall: Wall) -> Store {
+    fn new(rows: usize, cols: usize, brick_width: u32) -> Store {
+        let wall = Wall::new(rows, cols, brick_width);
         let current_drop = gen_random_drop();
         let init_x = wall.cols as i32 / 2 - 1;
+
         Store {
             wall,
             current_drop,
@@ -153,21 +155,21 @@ impl Store {
 }
 
 impl Store {
-    fn build_wall(&mut self) {
+    fn merge(&mut self) {
         let cols = self.wall.cols as i32;
         self.wall.bricks.extend(self.current_drop_coords.iter());
         self.wall
             .bricks
             .sort_by(|a, b| (a.1 * cols + a.0).cmp(&(b.1 * cols + b.0)));
-        let (mut new_bricks, mut temp, rows, _, game_over) = self.wall.bricks.iter().fold(
+        let (mut new_bricks, mut temp, rows, game_over, _) = self.wall.bricks.iter().fold(
             (
                 Vec::<(i32, i32)>::new(),
                 Vec::<(i32, i32)>::new(),
                 Vec::<i32>::new(),
-                0,
                 false,
+                0,
             ),
-            |(mut n, mut temp, mut rows, prev_y, game_over), &(x, y)| {
+            |(mut n, mut temp, mut rows, game_over, prev_y), &(x, y)| {
                 if y == prev_y || temp.len() == 0 {
                     temp.push((x, y));
                     if temp.len() == self.wall.cols {
@@ -179,7 +181,7 @@ impl Store {
                     temp.clear();
                     temp.push((x, y));
                 }
-                (n, temp, rows, y, game_over || y < 0)
+                (n, temp, rows, game_over || y < 0, y)
             },
         );
 
@@ -220,7 +222,7 @@ impl Store {
         }
         let crash = self.will_crash(new_drop_coords);
         if crash {
-            self.build_wall();
+            self.merge();
             self.current_drop = self.next_drop;
             self.current_drop_coords = get_drop_coords(self.current_drop, self.init_x);
             self.next_drop = gen_random_drop();
@@ -333,7 +335,7 @@ impl Store {
     }
 }
 
-macro_rules! render {
+macro_rules! brick_render {
     ($context:expr, $bricks:expr, $brick_width:expr) => {{
         let dist = $brick_width as f64 + 1.0;
         for &(x, y) in $bricks.iter() {
@@ -366,33 +368,28 @@ struct Tetris {
 }
 
 impl Tetris {
-    fn new(canvas_element: HtmlCanvasElement, store: Store) -> Tetris {
+    fn new(canvas_element: HtmlCanvasElement, rows: usize, cols: usize, brick_width: u32) -> Rc<RefCell<Tetris>> {
+        let store = Store::new(rows, cols, brick_width);
+        let y_translated = 8f64 * (brick_width + 1) as f64;
+        let width = cols as u32 * (brick_width + 1);
+        let height = (rows + 8) as u32 * (brick_width + 1);
+        let color_light = JsValue::from_str("#eee");
+        let color_dark = JsValue::from_str("#333");
         let context = canvas_element
             .get_context("2d")
             .unwrap()
             .unwrap()
             .dyn_into::<CanvasRenderingContext2d>()
             .unwrap();
-        let Wall {
-            cols,
-            rows,
-            brick_width,
-            ..
-        } = store.wall;
-        let y_translated = 8f64 * (brick_width + 1) as f64;
-        let width = cols as u32 * (brick_width + 1);
-        let height = (rows + 8) as u32 * (brick_width + 1);
-        let color_light = JsValue::from_str("#eee");
-        let color_dark = JsValue::from_str("#333");
 
         canvas_element.set_width(width);
         canvas_element.set_height(height);
         context.translate(0f64, y_translated).unwrap();
         context.set_text_align("center");
         context.set_fill_style(&color_light);
-        render!(context, cols, rows, brick_width);
+        brick_render!(context, cols, rows, brick_width);
 
-        Tetris {
+        let tetris = Tetris {
             store,
             context,
             width,
@@ -400,7 +397,12 @@ impl Tetris {
             y_translated,
             color_light,
             color_dark,
-        }
+        };
+        let tetris = Rc::new(RefCell::new(tetris));
+
+        setup_keyboard_event(tetris.clone());
+        setup_animatoin_frame(tetris.clone());
+        tetris
     }
 }
 
@@ -423,7 +425,7 @@ impl Tetris {
             .clear_rect(0.0, y0, self.width as f64, self.height as f64);
 
         self.context.set_fill_style(&self.color_light);
-        render!(self.context, cols, rows, brick_width);
+        brick_render!(self.context, cols, rows, brick_width);
 
         self.context.set_fill_style(&self.color_dark);
         self.context.set_font("12px sans-serif");
@@ -440,14 +442,14 @@ impl Tetris {
                 .fill_text("Press `enter` restart.", x_center, y0 + 50.0)
                 .unwrap();
         } else {
-            render!(
+            brick_render!(
                 self.context,
                 get_drop_coords(self.store.next_drop, self.store.init_x),
                 brick_width as f64
             );
         }
 
-        render!(
+        brick_render!(
             self.context,
             self.store.get_bricks_snapshot(),
             brick_width as f64
@@ -456,7 +458,7 @@ impl Tetris {
 }
 
 fn window() -> web_sys::Window {
-    web_sys::window().expect("no global `window` exists")
+    web_sys::window().expect("`window` not available")
 }
 
 fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
@@ -503,18 +505,10 @@ fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
 fn request_animation_frame(f: &Closure<FnMut()>) {
     window()
         .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("should register `requestAnimationFrame` OK");
+        .expect("`requestAnimationFrame` not available");
 }
 
-#[wasm_bindgen]
-pub fn play(canvas_element: HtmlCanvasElement, rows: usize, cols: usize, brick_width: u32) {
-    let wall = Wall::new(rows, cols, brick_width);
-    let store = Store::new(wall);
-    let tetris = Tetris::new(canvas_element, store);
-    let tetris = Rc::new(RefCell::new(tetris));
-
-    setup_keyboard_event(tetris.clone());
-
+fn setup_animatoin_frame(tetris: Rc<RefCell<Tetris>>) {
     // https://github.com/rustwasm/wasm-bindgen/blob/3d2f548ce2/examples/request-animation-frame/src/lib.rs
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -535,4 +529,9 @@ pub fn play(canvas_element: HtmlCanvasElement, rows: usize, cols: usize, brick_w
     }) as Box<FnMut()>));
 
     request_animation_frame(g.borrow().as_ref().unwrap());
+}
+
+#[wasm_bindgen]
+pub fn play(canvas_element: HtmlCanvasElement, rows: usize, cols: usize, brick_width: u32) {
+    Tetris::new(canvas_element, rows, cols, brick_width);
 }

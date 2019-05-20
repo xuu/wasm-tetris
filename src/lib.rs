@@ -11,6 +11,15 @@ use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, KeyboardEvent};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+// #[wasm_bindgen(js_namespace = Math)]
+// fn f64_random() -> f64;
+// fn floor(f: f64) -> usize;
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Brick {
     Empty,
@@ -56,14 +65,11 @@ impl Wall {
             bricks,
         }
     }
-
-    fn filled(&self, row: usize, col: usize) -> bool {
-        self.bricks[row][col] == Fill
-    }
 }
 
-// BrickDrop use Wall.bricks as an xy-Cartesian coordinate system, (x, y) -> (col, row)
-type DropCoords = [(i32, i32); 4]; // (x, y) -> (col, row)
+// BrickDrop use Wall.bricks as an xy-Cartesian coordinate system
+// (x, y) -> (col, row)
+type DropCoords = [(i32, i32); 4];
 
 impl Wall {
     fn drop_coords(&self, d: BrickDrop) -> DropCoords {
@@ -135,26 +141,22 @@ impl Store {
     fn will_crash(&self, new_drop_coords: DropCoords) -> bool {
         new_drop_coords
             .iter()
-            .any(|c| c.0 < 0 || c.0 >= self.wall.cols as i32 || c.1 >= self.wall.rows as i32)
+            .any(|&(x, y)| x < 0 || x >= self.wall.cols as i32 || y >= self.wall.rows as i32)
             || new_drop_coords
                 .iter()
-                .any(|&d| self.wall.filled(d.1 as usize, d.0 as usize))
+                .any(|&(x, y)| x >= 0 && y >= 0 && self.wall.bricks[y as usize][x as usize] == Fill)
     }
 }
 
 impl Store {
     fn merge(&mut self) {
-        for (x, y) in &self.current_drop_coords {
-            if *y < 0 {
+        for &(x, y) in &self.current_drop_coords {
+            if y < 0 {
                 self.game_over = true;
             } else {
-                self.wall.bricks[*y as usize][*x as usize] = Fill;
+                self.wall.bricks[y as usize][x as usize] = Fill;
             }
         }
-
-        // if self.game_over {
-        //     return;
-        // }
 
         self.wall
             .bricks
@@ -175,12 +177,9 @@ impl Store {
 
 impl Store {
     fn move_down(&mut self) -> bool {
-        if !self.playing || self.game_over {
-            return false;
-        }
         let mut new_drop_coords = self.current_drop_coords.clone();
-        for (_, y) in new_drop_coords.iter_mut() {
-            *y += 1;
+        for c in new_drop_coords.iter_mut() {
+            c.1 += 1;
         }
         if self.will_crash(new_drop_coords) {
             self.merge();
@@ -207,12 +206,9 @@ impl Store {
 
 impl Store {
     fn move_left(&mut self) {
-        if !self.playing || self.game_over {
-            return;
-        }
         let mut new_drop_coords = self.current_drop_coords.clone();
-        for (x, _) in new_drop_coords.iter_mut() {
-            *x -= 1;
+        for c in new_drop_coords.iter_mut() {
+            c.0 -= 1;
         }
         if !self.will_crash(new_drop_coords) {
             self.current_drop_coords = new_drop_coords;
@@ -222,12 +218,9 @@ impl Store {
 
 impl Store {
     fn move_right(&mut self) {
-        if !self.playing || self.game_over {
-            return;
-        }
         let mut new_drop_coords = self.current_drop_coords.clone();
-        for (x, _) in new_drop_coords.iter_mut() {
-            *x += 1;
+        for c in new_drop_coords.iter_mut() {
+            c.0 += 1;
         }
         if !self.will_crash(new_drop_coords) {
             self.current_drop_coords = new_drop_coords;
@@ -237,22 +230,22 @@ impl Store {
 
 impl Store {
     fn rotate(&mut self) {
-        if self.current_drop == O || !self.playing || self.game_over {
+        if self.current_drop == O {
             return;
         }
-        // https://en.wikipedia.org/wiki/Rotation_of_axes
-        // rotate 90 degree
         // use `dx` to adjust origin horizontally
         'outer: for dx in [0, -1, 1, -2, 2].iter() {
             let mut new_coords = self.current_drop_coords.clone();
-            // default rotate origin
-            let (x0, y0) = new_coords[1];
+            // rotate origin
+            let (mut x0, y0) = new_coords[1];
+            x0 += dx;
+            // rotate 90 degree
+            // https://en.wikipedia.org/wiki/Rotation_of_axes
             for c in new_coords.iter_mut() {
                 c.0 += dx;
                 *c = (x0 + y0 - c.1, y0 + c.0 - x0);
             }
-            if self.will_crash(new_coords) {
-            } else {
+            if !self.will_crash(new_coords) {
                 self.current_drop_coords = new_coords;
                 break 'outer;
             }
@@ -414,11 +407,12 @@ fn window() -> web_sys::Window {
 fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
     let closure = Closure::wrap(Box::new(move |e: KeyboardEvent| {
         let mut t = tetris.borrow_mut();
+        let yep = t.store.playing && !t.store.game_over;
         match e.key().as_str() {
-            "ArrowUp" | "w" | "i" => t.store.rotate(),
-            "ArrowRight" | "d" | "l" => t.store.move_right(),
-            "ArrowLeft" | "a" | "j" => t.store.move_left(),
-            "ArrowDown" | "s" | "k" => {
+            "ArrowUp" | "w" | "i" if yep => t.store.rotate(),
+            "ArrowRight" | "d" | "l" if yep => t.store.move_right(),
+            "ArrowLeft" | "a" | "j" if yep => t.store.move_left(),
+            "ArrowDown" | "s" | "k" if yep => {
                 t.store.move_down();
             }
             "p" => {
@@ -426,7 +420,7 @@ fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
                 return;
             }
             "r" => t.store.restart(),
-            " " => {
+            " " if yep => {
                 // e.prevent_default();
                 t.store.drop_down();
             }

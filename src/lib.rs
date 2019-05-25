@@ -3,7 +3,6 @@ extern crate wasm_bindgen;
 extern crate web_sys;
 
 use js_sys::Math;
-use std::f64;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, KeyboardEvent};
@@ -15,9 +14,8 @@ use std::rc::Rc;
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
-// #[wasm_bindgen(js_namespace = Math)]
-// fn f64_random() -> f64;
-// fn floor(f: f64) -> usize;
+    #[wasm_bindgen(js_namespace = console)]
+    fn error(s: &str);
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -56,13 +54,11 @@ struct Wall {
 
 impl Wall {
     fn new(rows: usize, cols: usize, brick_width: u32) -> Wall {
-        let bricks = vec![vec![Empty; cols]; rows];
-
         Wall {
             rows,
             cols,
             brick_width,
-            bricks,
+            bricks: vec![vec![Empty; cols]; rows],
         }
     }
 }
@@ -89,10 +85,11 @@ impl Wall {
 
 fn derived_level(score: u32) -> u32 {
     match score {
-        0...5_000 => 1,
-        5_000...8_000 => 2,
-        8_000...10_000 => 3,
-        _ => 4,
+        0...1_000 => 1,
+        1_000...3_000 => 2,
+        3_000...5_000 => 3,
+        5_000...7_000 => 4,
+        _ => 5,
     }
 }
 
@@ -101,7 +98,8 @@ fn derived_speed(level: u32) -> f64 {
         0 | 1 => 300.0,
         2 => 200.0,
         3 => 100.0,
-        _ => 50.0,
+        4 => 50.0,
+        _ => 20.0,
     }
 }
 
@@ -149,7 +147,7 @@ impl Store {
 }
 
 impl Store {
-    fn merge(&mut self) {
+    fn fill_in(&mut self) {
         for &(x, y) in &self.current_drop_coords {
             if y < 0 {
                 self.game_over = true;
@@ -182,7 +180,7 @@ impl Store {
             c.1 += 1;
         }
         if self.will_crash(new_drop_coords) {
-            self.merge();
+            self.fill_in();
             self.current_drop = self.next_drop;
             self.current_drop_coords = self.wall.drop_coords(self.current_drop);
             self.next_drop = random_drop();
@@ -270,7 +268,7 @@ impl Store {
 }
 
 impl Store {
-    fn get_frame(&self) -> Vec<Vec<Brick>> {
+    fn frame(&self) -> Vec<Vec<Brick>> {
         let mut bricks = self.wall.bricks.clone();
         for (x, y) in &self.current_drop_coords {
             if *y >= 0 {
@@ -286,6 +284,7 @@ struct Tetris {
     context: CanvasRenderingContext2d,
     width: u32,
     height: u32,
+    delta: u32,
     header_height: f64,
     color_light: JsValue,
     color_dark: JsValue,
@@ -298,14 +297,17 @@ impl Tetris {
         cols: usize,
         brick_width: u32,
     ) -> Rc<RefCell<Tetris>> {
-        if rows < 10 || cols < 10 || brick_width < 5 {
-            panic!("haha");
+        if rows < 10 || cols < 12 || brick_width < 5 {
+            let error_str = "Required: rows >= 10 && cols >= 12 && brick_width >= 5";
+            error(error_str);
+            panic!(error_str);
         }
 
         let store = Store::new(rows, cols, brick_width);
-        let header_height = 80f64;
-        let width = cols as u32 * (brick_width + 1);
-        let height = header_height as u32 + store.wall.bricks.len() as u32 * (brick_width + 1);
+        let delta = brick_width + 1;
+        let header_height = 6f64 * delta as f64;
+        let width = cols as u32 * delta;
+        let height = header_height as u32 + rows as u32 * delta;
         let color_light = JsValue::from_str("#eee");
         let color_dark = JsValue::from_str("#333");
         let context = canvas_element
@@ -320,16 +322,27 @@ impl Tetris {
         context.set_text_align("center");
         context.set_fill_style(&color_light);
 
-        let tetris = Tetris {
+        for row in 0..(rows + 6) {
+            for col in 0..cols {
+                context.fill_rect(
+                    col as f64 * delta as f64,
+                    row as f64 * delta as f64,
+                    brick_width as f64,
+                    brick_width as f64,
+                );
+            }
+        }
+
+        let tetris = Rc::new(RefCell::new(Tetris {
             store,
             context,
             width,
             height,
+            delta,
             header_height,
             color_light,
             color_dark,
-        };
-        let tetris = Rc::new(RefCell::new(tetris));
+        }));
 
         setup_keyboard_event(tetris.clone());
         setup_animatoin_frame(tetris.clone());
@@ -344,6 +357,13 @@ impl Tetris {
             + &self.store.score.to_string()
             + "/"
             + &self.store.level.to_string();
+        let Wall {
+            brick_width,
+            rows,
+            cols,
+            ..
+        } = self.store.wall;
+        let delta = self.delta as f64;
 
         self.context
             .clear_rect(0.0, 0.0, self.width as f64, self.height as f64);
@@ -355,33 +375,27 @@ impl Tetris {
             .unwrap();
 
         if self.store.game_over {
-            self.context.set_font("14px sans-serif");
+            self.context.set_font("18px sans-serif");
             self.context
-                .fill_text("Game Over!", x_center, 30.0)
+                .fill_text("Game Over!", x_center, 35.0)
                 .unwrap();
             self.context
-                .fill_text("Press `enter` restart.", x_center, 50.0)
+                .fill_text("Press `enter` restart.", x_center, 55.0)
                 .unwrap();
+        } else {
+            // next drop
+            for (x, y) in self.store.wall.drop_coords(self.store.next_drop).iter() {
+                self.context.fill_rect(
+                    *x as f64 * delta,
+                    self.header_height + *y as f64 * delta,
+                    brick_width as f64,
+                    brick_width as f64,
+                );
+            }
         }
 
-        let Wall {
-            brick_width,
-            rows,
-            cols,
-            ..
-        } = self.store.wall;
-        let frame = self.store.get_frame();
-        let dist = brick_width as f64 + 1.0;
-        // next drop
-        for (x, y) in self.store.wall.drop_coords(self.store.next_drop).iter() {
-            self.context.fill_rect(
-                *x as f64 * dist,
-                self.header_height + *y as f64 * dist,
-                brick_width as f64,
-                brick_width as f64,
-            );
-        }
         // wall
+        let frame = self.store.frame();
         for row in 0..rows {
             for col in 0..cols {
                 self.context.set_fill_style(if frame[row][col] == Fill {
@@ -390,8 +404,8 @@ impl Tetris {
                     &self.color_light
                 });
                 self.context.fill_rect(
-                    col as f64 * dist,
-                    self.header_height + row as f64 * dist,
+                    col as f64 * delta,
+                    self.header_height + row as f64 * delta,
                     brick_width as f64,
                     brick_width as f64,
                 );

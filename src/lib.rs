@@ -40,9 +40,8 @@ enum BrickDrop {
 use self::BrickDrop::*;
 
 fn random_drop() -> BrickDrop {
-    let brick_drops = [I, J, L, O, S, T, Z];
     let r = Math::floor(Math::random() * 7.0) as usize;
-    brick_drops[r]
+    [I, J, L, O, S, T, Z][r]
 }
 
 struct Wall {
@@ -357,23 +356,17 @@ impl Tetris {
             + &self.store.score.to_string()
             + "/"
             + &self.store.level.to_string();
-        let Wall {
-            brick_width,
-            rows,
-            cols,
-            ..
-        } = self.store.wall;
-        let delta = self.delta as f64;
 
         self.context
             .clear_rect(0.0, 0.0, self.width as f64, self.height as f64);
-
         self.context.set_fill_style(&self.color_dark);
         self.context.set_font("12px sans-serif");
         self.context
             .fill_text(&score_level, x_center, 10.0)
             .unwrap();
 
+        let brick_width = self.store.wall.brick_width as f64;
+        let delta = self.delta as f64;
         if self.store.game_over {
             self.context.set_font("18px sans-serif");
             self.context
@@ -388,16 +381,16 @@ impl Tetris {
                 self.context.fill_rect(
                     *x as f64 * delta,
                     self.header_height + *y as f64 * delta,
-                    brick_width as f64,
-                    brick_width as f64,
+                    brick_width,
+                    brick_width,
                 );
             }
         }
 
         // wall
         let frame = self.store.frame();
-        for row in 0..rows {
-            for col in 0..cols {
+        for row in 0..self.store.wall.rows {
+            for col in 0..self.store.wall.cols {
                 self.context.set_fill_style(if frame[row][col] == Fill {
                     &self.color_dark
                 } else {
@@ -406,8 +399,8 @@ impl Tetris {
                 self.context.fill_rect(
                     col as f64 * delta,
                     self.header_height + row as f64 * delta,
-                    brick_width as f64,
-                    brick_width as f64,
+                    brick_width,
+                    brick_width,
                 );
             }
         }
@@ -445,7 +438,7 @@ fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
                     t.store.drop_down();
                 }
             }
-            &_ => (),
+            _ => (),
         }
         if !t.store.playing {
             t.store.pause_toggle()

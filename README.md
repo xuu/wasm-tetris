@@ -14,7 +14,7 @@ Build:
 wasm-pack build --target web
 ```
 
-Setup a local server (`python3 -m http.server` or [serve](https://github.com/zeit/serve)) in the root then open `index.html` in a modern browser.
+Run a local server then open `index.html` in a modern browser.
 
 ## References
 

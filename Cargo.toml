@@ -1,6 +1,6 @@
 [package]
 name = "wasm_tetris"
-version = "2.1.0"
+version = "3.0.0"
 authors = ["axu <axu701@gmail.com>"]
 edition = "2018"
 description = "Tetris game WebAssembly demo"

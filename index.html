@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>Wasm Tetris</title>
@@ -31,15 +31,20 @@
     <h1>Wasm Tetris</h1>
     <p><canvas id="canvas"></canvas></p>
     <p>
-      <code> start: enter</code><br />
       <code>
-        left/rotate/right/speed up: '←/↑/→/↓' or 'j/i/l/k' or 'a/w/d/s'
+        start: enter, drop: enter/space, pause: p, restart: r
+        <br />
+        left/rotate/right/speedup: '←/↑/→/↓' or 'j/i/l/k' or 'a/w/d/s'
       </code>
-      <br />
-      <code>drop: enter/space</code><br />
-      <code>pause: p</code><br />
-      <code>restart: r </code>
     </p>
     <p><a href="https://github.com/xuu/wasm-tetris">GitHub</a></p>
-  <script type="text/javascript" src="index.js"></script></body>
+    <script type="module">
+      import { play, default as init } from './pkg/wasm_tetris.js';
+      async function run() {
+        await init('./pkg/wasm_tetris_bg.wasm');
+        play(document.getElementById('canvas'), 25, 18, 15);
+      }
+      run();
+    </script>
+  </body>
 </html>

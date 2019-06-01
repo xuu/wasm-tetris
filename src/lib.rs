@@ -107,6 +107,7 @@ struct Store {
     current_drop: BrickDrop,
     current_drop_coords: DropCoords,
     next_drop: BrickDrop,
+    next_drop_coords: DropCoords,
     score: u32,
     level: u32,
     speed: f64,
@@ -118,13 +119,16 @@ impl Store {
     fn new(rows: usize, cols: usize, brick_width: u32) -> Store {
         let wall = Wall::new(rows, cols, brick_width);
         let current_drop = random_drop();
+        let next_drop = random_drop();
         let current_drop_coords = wall.drop_coords(current_drop);
+        let next_drop_coords = wall.drop_coords(next_drop);
 
         Store {
             wall,
             current_drop,
             current_drop_coords,
-            next_drop: random_drop(),
+            next_drop,
+            next_drop_coords,
             score: 0,
             level: 1,
             speed: 300.0,
@@ -158,6 +162,10 @@ impl Store {
         self.wall
             .bricks
             .retain(|row| row.iter().any(|&b| b == Empty));
+        self.current_drop = self.next_drop;
+        self.current_drop_coords = self.next_drop_coords;
+        self.next_drop = random_drop();
+        self.next_drop_coords = self.wall.drop_coords(self.next_drop);
 
         let rows_remain = self.wall.bricks.len();
         if rows_remain < self.wall.rows {
@@ -180,9 +188,6 @@ impl Store {
         }
         if self.will_crash(new_drop_coords) {
             self.fill_in();
-            self.current_drop = self.next_drop;
-            self.current_drop_coords = self.wall.drop_coords(self.current_drop);
-            self.next_drop = random_drop();
             false
         } else {
             self.current_drop_coords = new_drop_coords;
@@ -284,7 +289,7 @@ struct Tetris {
     width: u32,
     height: u32,
     delta: u32,
-    header_height: f64,
+    header_height: u32,
     color_light: JsValue,
     color_dark: JsValue,
 }
@@ -304,7 +309,7 @@ impl Tetris {
 
         let store = Store::new(rows, cols, brick_width);
         let delta = brick_width + 1;
-        let header_height = 6f64 * delta as f64;
+        let header_height = 6 * delta;
         let width = cols as u32 * delta;
         let height = header_height as u32 + rows as u32 * delta;
         let color_light = JsValue::from_str("#eee");
@@ -366,6 +371,7 @@ impl Tetris {
             .unwrap();
 
         let brick_width = self.store.wall.brick_width as f64;
+        let header_height = self.header_height as f64;
         let delta = self.delta as f64;
         if self.store.game_over {
             self.context.set_font("18px sans-serif");
@@ -376,18 +382,16 @@ impl Tetris {
                 .fill_text("Press `enter` restart.", x_center, 55.0)
                 .unwrap();
         } else {
-            // next drop
-            for (x, y) in self.store.wall.drop_coords(self.store.next_drop).iter() {
+            for (x, y) in self.store.next_drop_coords.iter() {
                 self.context.fill_rect(
                     *x as f64 * delta,
-                    self.header_height + *y as f64 * delta,
+                    header_height + *y as f64 * delta,
                     brick_width,
                     brick_width,
                 );
             }
         }
 
-        // wall
         let frame = self.store.frame();
         for row in 0..self.store.wall.rows {
             for col in 0..self.store.wall.cols {
@@ -398,7 +402,7 @@ impl Tetris {
                 });
                 self.context.fill_rect(
                     col as f64 * delta,
-                    self.header_height + row as f64 * delta,
+                    header_height + row as f64 * delta,
                     brick_width,
                     brick_width,
                 );
@@ -408,7 +412,7 @@ impl Tetris {
 }
 
 fn window() -> web_sys::Window {
-    web_sys::window().expect("`window` not available")
+    web_sys::window().expect("global `window` should be OK")
 }
 
 fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
@@ -456,7 +460,7 @@ fn setup_keyboard_event(tetris: Rc<RefCell<Tetris>>) {
 fn request_animation_frame(f: &Closure<FnMut()>) {
     window()
         .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("`requestAnimationFrame` not available");
+        .expect("`requestAnimationFrame` should be OK");
 }
 
 // https://github.com/rustwasm/wasm-bindgen/blob/3d2f548ce2/examples/request-animation-frame/src/lib.rs

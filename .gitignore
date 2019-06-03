@@ -5,4 +5,4 @@
 /bin
 /pkg
 /dist
-package-lock.json
+_*

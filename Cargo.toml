@@ -1,6 +1,6 @@
 [package]
 name = "wasm_tetris"
-version = "2.0.1"
+version = "3.0.0"
 authors = ["axu <axu701@gmail.com>"]
 edition = "2018"
 description = "Tetris game WebAssembly demo"
@@ -11,8 +11,8 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasm-bindgen = "0.2.37"
-js-sys = "0.3.6"
+wasm-bindgen = "0.2.43"
+js-sys = "0.3.20"
 
 [dependencies.web-sys]
 version = "0.3.4"

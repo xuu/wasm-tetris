@@ -24,6 +24,8 @@ features = [
   'Window',
   'EventListener',
   'EventTarget',
+  'Event',
+  'FocusEvent',
   'KeyboardEvent',
   'UiEvent',
   'Performance'

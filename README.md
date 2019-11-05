@@ -1,6 +1,6 @@
 # Wasm Tetris
 
-Tetris game WebAssembly demo.
+Tetris game in WebAssembly.
 
 ![Snapshot](/snapshot.png)
 

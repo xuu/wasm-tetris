@@ -44,6 +44,28 @@ fn tetro_random() -> Tetromino {
     [I, J, L, O, S, T, Z][r]
 }
 
+// (x, y) -> (col, row)
+type TetroCoords = [(i32, i32); 4];
+
+fn tetro_coords(d: Tetromino) -> TetroCoords {
+    match d {
+        I => [(0, -4), (0, -3), (0, -2), (0, -1)],
+        J => [(1, -3), (1, -2), (1, -1), (0, -1)],
+        L => [(0, -3), (0, -2), (0, -1), (1, -1)],
+        O => [(0, -2), (1, -2), (0, -1), (1, -1)],
+        S => [(2, -2), (1, -2), (1, -1), (0, -1)],
+        T => [(0, -2), (1, -2), (2, -2), (1, -1)],
+        Z => [(0, -2), (1, -2), (1, -1), (2, -1)],
+    }
+}
+
+fn center_tetro_coords(coords: &mut TetroCoords, cols: i32) {
+    let x0 = cols / 2 - 1;
+    for (x, _) in coords.iter_mut() {
+        *x += x0
+    }
+}
+
 fn derived_level(score: u32) -> u32 {
     match score {
         0..=1_000 => 1,
@@ -64,9 +86,6 @@ fn derived_speed(level: u32) -> f64 {
     }
 }
 
-// (x, y) -> (col, row)
-type TetroCoords = [(i32, i32); 4];
-
 struct Core {
     rows: usize,
     cols: usize,
@@ -80,25 +99,6 @@ struct Core {
     level: u32,
     speed: f64,
     game_over: bool,
-}
-
-fn tetro_coords(d: Tetromino) -> TetroCoords {
-    match d {
-        I => [(0, -4), (0, -3), (0, -2), (0, -1)],
-        J => [(1, -3), (1, -2), (1, -1), (0, -1)],
-        L => [(0, -3), (0, -2), (0, -1), (1, -1)],
-        O => [(0, -2), (1, -2), (0, -1), (1, -1)],
-        S => [(2, -2), (1, -2), (1, -1), (0, -1)],
-        T => [(0, -2), (1, -2), (2, -2), (1, -1)],
-        Z => [(0, -2), (1, -2), (1, -1), (2, -1)],
-    }
-}
-
-fn center_tetro_coords(coords: &mut TetroCoords, cols: i32) {
-    let x0 = cols / 2 - 1;
-    for (x, _) in coords.iter_mut() {
-        *x += x0
-    }
 }
 
 impl Core {
@@ -258,8 +258,8 @@ struct Tetris {
     height: u32,
     delta: u32,
     header_height: u32,
-    color_light: JsValue,
-    color_dark: JsValue,
+    color_blank: JsValue,
+    color_fill: JsValue,
 }
 
 impl Tetris {
@@ -269,19 +269,19 @@ impl Tetris {
         cols: usize,
         block_width: u32,
     ) -> Rc<RefCell<Tetris>> {
-        if rows < 10 || cols < 12 || block_width < 5 {
-            let error_str = "Required: rows >= 10 && cols >= 12 && block_width >= 5";
-            error(error_str);
-            panic!(error_str);
+        if rows < 12 || cols < 10 || block_width < 10 {
+            let required = "Required: rows >= 12 && cols >= 10 && block_width >= 10";
+            error(required);
+            panic!(required);
         }
 
         let core = Core::new(rows, cols, block_width);
         let delta = block_width + 1;
-        let header_height = 80u32;
+        let header_height = 60u32;
         let width = cols as u32 * delta;
         let height = header_height + rows as u32 * delta;
-        let color_light = JsValue::from_str("#eee");
-        let color_dark = JsValue::from_str("#333");
+        let color_blank = JsValue::from_str("#eee");
+        let color_fill = JsValue::from_str("#333");
         let context = canvas
             .get_context("2d")
             .unwrap()
@@ -293,22 +293,22 @@ impl Tetris {
         canvas.set_height(height);
         canvas.set_attribute("tabindex", "1").unwrap();
         context.set_text_align("center");
-        context.set_fill_style(&color_light);
+        context.set_fill_style(&color_blank);
 
-        let tetris = Rc::new(RefCell::new(Tetris {
+        let rc_tetris = Rc::new(RefCell::new(Tetris {
             core,
             context,
             width,
             height,
             delta,
             header_height,
-            color_light,
-            color_dark,
+            color_blank,
+            color_fill,
         }));
 
-        tetris.clone().borrow_mut().render();
-        setup(canvas, tetris.clone());
-        tetris
+        setup(canvas, rc_tetris.clone());
+        rc_tetris.borrow_mut().render();
+        rc_tetris
     }
 }
 
@@ -325,7 +325,7 @@ impl Tetris {
 
         self.context
             .clear_rect(0.0, 0.0, self.width as f64, self.height as f64);
-        self.context.set_fill_style(&self.color_dark);
+        self.context.set_fill_style(&self.color_fill);
         self.context.set_font("12px sans-serif");
         self.context
             .fill_text(&score_level, x_center, 10.0)
@@ -336,18 +336,15 @@ impl Tetris {
             self.context
                 .fill_text("Game Over!", x_center, 35.0)
                 .unwrap();
-            self.context
-                .fill_text("Press `enter` restart.", x_center, 55.0)
-                .unwrap();
         } else {
-            let d = 8.0;
-            let delta = d + 1.0;
+            let w = 8.0;
+            let delta = w + 1.0;
             for (x, y) in self.core.next_tetro_coords.iter() {
                 self.context.fill_rect(
                     (*x - 1) as f64 * delta + x_center,
                     header_height + *y as f64 * delta,
-                    d,
-                    d,
+                    w,
+                    w,
                 );
             }
         }
@@ -356,9 +353,9 @@ impl Tetris {
             for col in 0..self.core.cols {
                 self.context
                     .set_fill_style(if self.core.matrix[row][col] == Fill {
-                        &self.color_dark
+                        &self.color_fill
                     } else {
-                        &self.color_light
+                        &self.color_blank
                     });
                 self.context.fill_rect(
                     col as f64 * delta,
@@ -368,7 +365,7 @@ impl Tetris {
                 );
             }
         }
-        self.context.set_fill_style(&self.color_dark);
+        self.context.set_fill_style(&self.color_fill);
         for (x, y) in self.core.current_tetro_coords.iter() {
             if y >= &0 {
                 self.context.fill_rect(
@@ -383,45 +380,47 @@ impl Tetris {
 }
 
 // https://github.com/rustwasm/wasm-bindgen/blob/3d2f548ce2/examples/request-animation-frame/src/lib.rs
-fn setup(canvas: &HtmlCanvasElement, tetris: Rc<RefCell<Tetris>>) {
+fn setup(canvas: &HtmlCanvasElement, rc_tetris: Rc<RefCell<Tetris>>) {
     let id = Rc::new(RefCell::new(None));
+    let id1 = id.clone();
+    let id2 = id.clone();
     let f = Rc::new(RefCell::new(None));
-    let g = f.clone();
-    let id0 = id.clone();
-    let t0 = tetris.clone();
-
+    let f1 = f.clone();
+    let f2 = f.clone();
+    let t1 = rc_tetris.clone();
     let mut time_stamp = 0.0;
-    *g.borrow_mut() = Some(Closure::wrap(Box::new(move |time: f64| {
-        log("dddddd");
-        if time - time_stamp > t0.borrow().core.speed {
+
+    *f1.borrow_mut() = Some(Closure::wrap(Box::new(move |time: f64| {
+        // log(".....");
+        if time - time_stamp > rc_tetris.borrow().core.speed {
             time_stamp = time;
-            let mut t = t0.borrow_mut();
+            let mut t = rc_tetris.borrow_mut();
             if !t.core.game_over {
                 t.core.move_down();
                 t.render();
             }
         }
-
-        *id0.borrow_mut() = Some(request_animation_frame(f.borrow().as_ref().unwrap()));
+        *id.borrow_mut() = Some(request_animation_frame(f.borrow().as_ref().unwrap()));
     }) as Box<dyn FnMut(_)>));
 
-    let id2 = id.clone();
-    let g1 = g.clone();
     let focus_handler = Closure::wrap(Box::new(move |e: FocusEvent| {
         if e.type_() == "focus" {
-            request_animation_frame(g1.borrow().as_ref().unwrap());
+            request_animation_frame(f1.borrow().as_ref().unwrap());
         } else {
-            if let Some(i) = *id2.borrow() {
+            if let Some(i) = *id1.borrow() {
                 cancel_animation_frame(i);
             }
-            *id2.borrow_mut() = None;
+            *id1.borrow_mut() = None;
         }
     }) as Box<dyn FnMut(_)>);
 
-    let t2 = tetris.clone();
-    let id3 = id.clone();
     let keyboard_handler = Closure::wrap(Box::new(move |e: KeyboardEvent| {
-        let mut t = t2.borrow_mut();
+        let mut t = t1.borrow_mut();
+        let playing = if let Some(_) = *id2.borrow() {
+            true
+        } else {
+            false
+        };
         if t.core.game_over {
             match e.key().as_str() {
                 "r" | "Enter" => {
@@ -432,7 +431,7 @@ fn setup(canvas: &HtmlCanvasElement, tetris: Rc<RefCell<Tetris>>) {
             }
             return;
         }
-        if let Some(_) = *id3.borrow() {
+        if playing {
             match e.key().as_str() {
                 "ArrowUp" | "w" | "i" => t.core.rotate(),
                 "ArrowRight" | "d" | "l" => t.core.move_right(),
@@ -440,22 +439,21 @@ fn setup(canvas: &HtmlCanvasElement, tetris: Rc<RefCell<Tetris>>) {
                 "ArrowDown" | "s" | "k" => {
                     t.core.move_down();
                 }
-                "p" => {
-                    if let Some(i) = *id3.borrow() {
-                        cancel_animation_frame(i);
-                    }
-                    *id3.borrow_mut() = None;
-                }
-                "r" => t.core.restart(),
-                " " => {
+                "Enter" | " " => {
                     e.prevent_default();
                     t.core.drop_down();
                 }
-                "Enter" => t.core.drop_down(),
+                "p" => {
+                    if let Some(i) = *id2.borrow() {
+                        cancel_animation_frame(i);
+                    }
+                    *id2.borrow_mut() = None;
+                }
+                "r" => t.core.restart(),
                 _ => (),
             }
         } else {
-            request_animation_frame(g.borrow().as_ref().unwrap());
+            request_animation_frame(f2.borrow().as_ref().unwrap());
         }
         t.render();
     }) as Box<dyn FnMut(_)>);
@@ -488,7 +486,9 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) -> i32 {
 }
 
 fn cancel_animation_frame(id: i32) {
-    window().cancel_animation_frame(id).unwrap();
+    window()
+        .cancel_animation_frame(id)
+        .expect("`cancelAnimationFrame` should be OK.");
 }
 
 #[wasm_bindgen]

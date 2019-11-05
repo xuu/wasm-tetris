@@ -34,9 +34,11 @@
     <p id="p-canvas"></p>
     <p>
       <code>
-        start: enter, drop: enter/space, pause: p, restart: r
+        click & focus on the canvas to play
         <br />
         left/rotate/right/speedup: '←/↑/→/↓' or 'j/i/l/k' or 'a/w/d/s'
+        <br />
+        drop: enter/space, pause: p, restart: r
       </code>
     </p>
     <p><a href="https://github.com/xuu/wasm-tetris">GitHub</a></p>
@@ -44,7 +46,7 @@
       import { make_tetris, default as init } from './pkg/wasm_tetris.js'
       async function run() {
         await init('./pkg/wasm_tetris_bg.wasm')
-        document.getElementById('p-canvas').appendChild(make_tetris(18, 15, 20))
+        document.getElementById('p-canvas').appendChild(make_tetris(15, 12, 25))
       }
       run()
     </script>

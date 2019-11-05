@@ -4,22 +4,24 @@
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta name="author" content="Axu Wei" />
     <title>Wasm Tetris</title>
     <style>
       body {
         text-align: center;
         font-family: Helvetica, Arial, sans-serif;
+        margin: 0;
       }
-
       h1 {
         font-weight: 100;
       }
-
       canvas {
         padding: 2px;
         border: 1px solid #333;
       }
-
+      canvas:focus {
+        outline: 1px solid springgreen;
+      }
       code {
         font-family: consolas, courier, monospace;
         font-size: 12px;
@@ -29,22 +31,24 @@
 
   <body>
     <h1>Wasm Tetris</h1>
-    <p><canvas id="canvas"></canvas></p>
+    <p id="p-canvas"></p>
     <p>
       <code>
-        start: enter, drop: enter/space, pause: p, restart: r
+        click & focus on the canvas to play
         <br />
         left/rotate/right/speedup: '←/↑/→/↓' or 'j/i/l/k' or 'a/w/d/s'
+        <br />
+        drop: enter/space, pause: p, restart: r
       </code>
     </p>
     <p><a href="https://github.com/xuu/wasm-tetris">GitHub</a></p>
     <script type="module">
-      import { play, default as init } from './pkg/wasm_tetris.js';
+      import { make_tetris, default as init } from './pkg/wasm_tetris.js'
       async function run() {
-        await init('./pkg/wasm_tetris_bg.wasm');
-        play(document.getElementById('canvas'), 25, 18, 15);
+        await init('./pkg/wasm_tetris_bg.wasm')
+        document.getElementById('p-canvas').appendChild(make_tetris(15, 12, 25))
       }
-      run();
+      run()
     </script>
   </body>
 </html>

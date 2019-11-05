@@ -3,6 +3,6 @@
 **/*.rs.bk
 **/*.log
 /bin
-/pkg
+/examples/pkg
 /dist
 _*

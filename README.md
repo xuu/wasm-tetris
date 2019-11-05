@@ -1,6 +1,6 @@
 # Wasm Tetris
 
-Tetris game WebAssembly demo.
+Tetris game in WebAssembly.
 
 ![Snapshot](/snapshot.png)
 
@@ -11,10 +11,10 @@ Install [Rust](https://www.rust-lang.org/learn/get-started) and [Wasm-Pack](http
 Build:
 
 ```
-wasm-pack build --target web
+wasm-pack build --out-dir examples/pkg --target web
 ```
 
-Run a local server then open `index.html` in a modern browser.
+Run a local server at `/examples` then open `/examples/index.html` in a modern browser.
 
 ## References
 

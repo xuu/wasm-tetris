@@ -1,0 +1,21 @@
+{
+  "name": "wasm_tetris",
+  "collaborators": [
+    "axu <axu701@gmail.com>"
+  ],
+  "description": "Tetris game WebAssembly demo",
+  "version": "3.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xuu/wasm-tetris"
+  },
+  "files": [
+    "wasm_tetris_bg.wasm",
+    "wasm_tetris.js",
+    "wasm_tetris.d.ts"
+  ],
+  "module": "wasm_tetris.js",
+  "types": "wasm_tetris.d.ts",
+  "sideEffects": "false"
+}

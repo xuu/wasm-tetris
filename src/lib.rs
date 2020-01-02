@@ -291,7 +291,7 @@ impl Tetris {
 
         canvas.set_width(width);
         canvas.set_height(height);
-        canvas.set_attribute("tabindex", "1").unwrap();
+        canvas.set_attribute("tabindex", "0").unwrap();
         context.set_text_align("center");
         context.set_fill_style(&color_blank);
 

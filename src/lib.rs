@@ -27,7 +27,7 @@ enum Block {
 use self::Block::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-enum Tetromino {
+enum TetroTypes {
     I,
     J,
     L,
@@ -37,41 +37,40 @@ enum Tetromino {
     Z,
 }
 
-use self::Tetromino::*;
-
-fn tetro_random() -> Tetromino {
-    let r = Math::floor(Math::random() * 7.0) as usize;
-    [I, J, L, O, S, T, Z][r]
-}
+use self::TetroTypes::*;
 
 // (x, y) -> (col, row)
 type TetroCoords = [(i32, i32); 4];
 
-fn tetro_coords(d: Tetromino) -> TetroCoords {
-    match d {
-        I => [(0, -4), (0, -3), (0, -2), (0, -1)],
-        J => [(1, -3), (1, -2), (1, -1), (0, -1)],
-        L => [(0, -3), (0, -2), (0, -1), (1, -1)],
-        O => [(0, -2), (1, -2), (0, -1), (1, -1)],
-        S => [(2, -2), (1, -2), (1, -1), (0, -1)],
-        T => [(0, -2), (1, -2), (2, -2), (1, -1)],
-        Z => [(0, -2), (1, -2), (1, -1), (2, -1)],
-    }
+#[derive(Debug, Copy, Clone)]
+struct Tetromino {
+    t: TetroTypes,
+    coords: TetroCoords,
 }
 
-fn center_tetro_coords(coords: &mut TetroCoords, cols: i32) {
-    let x0 = cols / 2 - 1;
-    for (x, _) in coords.iter_mut() {
-        *x += x0
+impl Tetromino {
+    fn random(x0: i32) -> Tetromino {
+        let r = Math::floor(Math::random() * 7.0) as usize;
+        let t = [I, J, L, O, S, T, Z][r];
+        let coords = match t {
+            I => [(x0, -4), (x0, -3), (x0, -2), (x0, -1)],
+            J => [(x0 + 1, -3), (x0 + 1, -2), (x0 + 1, -1), (x0, -1)],
+            L => [(x0, -3), (x0, -2), (x0, -1), (x0 + 1, -1)],
+            O => [(x0, -2), (x0 + 1, -2), (x0, -1), (x0 + 1, -1)],
+            S => [(x0 + 2, -2), (x0 + 1, -2), (x0 + 1, -1), (x0, -1)],
+            T => [(x0, -2), (x0 + 1, -2), (x0 + 2, -2), (x0 + 1, -1)],
+            Z => [(x0, -2), (x0 + 1, -2), (x0 + 1, -1), (x0 + 2, -1)],
+        };
+        Tetromino { t, coords }
     }
 }
 
 fn derived_level(score: u32) -> u32 {
     match score {
-        0..=1_000 => 1,
-        1_000..=3_000 => 2,
-        3_000..=5_000 => 3,
-        5_000..=7_000 => 4,
+        0..=999 => 1,
+        1_000..=2_999 => 2,
+        3_000..=4_999 => 3,
+        5_000..=6_999 => 4,
         _ => 5,
     }
 }
@@ -93,8 +92,6 @@ struct Core {
     matrix: Vec<Vec<Block>>,
     current_tetro: Tetromino,
     next_tetro: Tetromino,
-    current_tetro_coords: TetroCoords,
-    next_tetro_coords: TetroCoords,
     score: u32,
     level: u32,
     speed: f64,
@@ -103,11 +100,9 @@ struct Core {
 
 impl Core {
     fn new(rows: usize, cols: usize, block_width: u32) -> Core {
-        let current_tetro = tetro_random();
-        let next_tetro = tetro_random();
-        let mut current_tetro_coords = tetro_coords(current_tetro);
-        let next_tetro_coords = tetro_coords(next_tetro);
-        center_tetro_coords(&mut current_tetro_coords, cols as i32);
+        let x0 = cols as i32 / 2 - 1;
+        let current_tetro = Tetromino::random(x0);
+        let next_tetro = Tetromino::random(x0);
 
         Core {
             rows,
@@ -116,8 +111,6 @@ impl Core {
             matrix: vec![vec![Blank; cols]; rows],
             current_tetro,
             next_tetro,
-            current_tetro_coords,
-            next_tetro_coords,
             score: 0,
             level: 1,
             speed: 300.0,
@@ -139,7 +132,7 @@ impl Core {
 
 impl Core {
     fn fill_in(&mut self) {
-        for &(x, y) in &self.current_tetro_coords {
+        for &(x, y) in &self.current_tetro.coords {
             if y < 0 {
                 self.game_over = true;
             } else {
@@ -147,12 +140,9 @@ impl Core {
             }
         }
 
-        self.current_tetro = self.next_tetro;
-        self.current_tetro_coords = self.next_tetro_coords;
-        self.next_tetro = tetro_random();
-        self.next_tetro_coords = tetro_coords(self.next_tetro);
+        self.current_tetro = self.next_tetro.clone();
+        self.next_tetro = Tetromino::random(self.cols as i32 / 2 - 1);
         self.matrix.retain(|row| row.iter().any(|&b| b == Blank));
-        center_tetro_coords(&mut self.current_tetro_coords, self.cols as i32);
 
         let rows_remain = self.matrix.len();
         if rows_remain < self.rows {
@@ -169,7 +159,7 @@ impl Core {
 
 impl Core {
     fn move_down(&mut self) -> bool {
-        let mut new_coords = self.current_tetro_coords.clone();
+        let mut new_coords = self.current_tetro.coords.clone();
         for c in new_coords.iter_mut() {
             c.1 += 1;
         }
@@ -177,7 +167,7 @@ impl Core {
             self.fill_in();
             false
         } else {
-            self.current_tetro_coords = new_coords;
+            self.current_tetro.coords = new_coords;
             true
         }
     }
@@ -191,36 +181,36 @@ impl Core {
 
 impl Core {
     fn move_left(&mut self) {
-        let mut new_coords = self.current_tetro_coords.clone();
+        let mut new_coords = self.current_tetro.coords.clone();
         for c in new_coords.iter_mut() {
             c.0 -= 1;
         }
         if !self.will_crash(new_coords) {
-            self.current_tetro_coords = new_coords;
+            self.current_tetro.coords = new_coords;
         }
     }
 }
 
 impl Core {
     fn move_right(&mut self) {
-        let mut new_coords = self.current_tetro_coords.clone();
+        let mut new_coords = self.current_tetro.coords.clone();
         for c in new_coords.iter_mut() {
             c.0 += 1;
         }
         if !self.will_crash(new_coords) {
-            self.current_tetro_coords = new_coords;
+            self.current_tetro.coords = new_coords;
         }
     }
 }
 
 impl Core {
     fn rotate(&mut self) {
-        if self.current_tetro == O {
+        if self.current_tetro.t == O {
             return;
         }
         // use `dx` to adjust origin horizontally
         for dx in [0, -1, 1, -2, 2].iter() {
-            let mut new_coords = self.current_tetro_coords.clone();
+            let mut new_coords = self.current_tetro.coords.clone();
             // rotate origin
             let (mut x0, y0) = new_coords[1];
             x0 += dx;
@@ -231,7 +221,7 @@ impl Core {
                 *c = (x0 + y0 - c.1, y0 + c.0 - x0);
             }
             if !self.will_crash(new_coords) {
-                self.current_tetro_coords = new_coords;
+                self.current_tetro.coords = new_coords;
                 break;
             }
         }
@@ -240,14 +230,13 @@ impl Core {
 
 impl Core {
     fn restart(&mut self) {
+        let x0 = self.cols as i32 / 2 - 1;
+        self.current_tetro = Tetromino::random(x0);
+        self.next_tetro = Tetromino::random(x0);
         self.matrix = vec![vec![Blank; self.cols]; self.rows];
-        self.current_tetro = tetro_random();
-        self.next_tetro = tetro_random();
-        self.current_tetro_coords = tetro_coords(self.current_tetro);
         self.score = 0;
         self.game_over = false;
         self.speed = 300.0;
-        center_tetro_coords(&mut self.current_tetro_coords, self.cols as i32);
     }
 }
 
@@ -337,11 +326,13 @@ impl Tetris {
                 .fill_text("Game Over!", x_center, 35.0)
                 .unwrap();
         } else {
+            // next tetro
             let w = 8.0;
             let delta = w + 1.0;
-            for (x, y) in self.core.next_tetro_coords.iter() {
+            let x0 = (self.core.cols / 2) as i32;
+            for (x, y) in self.core.next_tetro.coords.iter() {
                 self.context.fill_rect(
-                    (*x - 1) as f64 * delta + x_center,
+                    (*x - x0) as f64 * delta + x_center,
                     header_height + *y as f64 * delta,
                     w,
                     w,
@@ -366,7 +357,7 @@ impl Tetris {
             }
         }
         self.context.set_fill_style(&self.color_fill);
-        for (x, y) in self.core.current_tetro_coords.iter() {
+        for (x, y) in self.core.current_tetro.coords.iter() {
             if y >= &0 {
                 self.context.fill_rect(
                     *x as f64 * delta,
@@ -391,7 +382,6 @@ fn setup(canvas: &HtmlCanvasElement, rc_tetris: Rc<RefCell<Tetris>>) {
     let mut time_stamp = 0.0;
 
     *f1.borrow_mut() = Some(Closure::wrap(Box::new(move |time: f64| {
-        // log(".....");
         if time - time_stamp > rc_tetris.borrow().core.speed {
             time_stamp = time;
             let mut t = rc_tetris.borrow_mut();
